@@ -305,7 +305,7 @@ contains
             if (lmason) zlt(i,j,k) = (1. / zlt(i,j,k) ** nmason + 1. / ( fkar * (zf(k) + z0m(i,j)))**nmason) ** (-1./nmason)
             ekm(i,j,k) = cm * zlt(i,j,k) * e120(i,j,k)
             call applydamping(ekm(i,j,k),i,j,k)   !< MK - apply damping function in modruraldata.f90 when it is used.
-			ekh(i,j,k) = (ch1 + ch2) * ekm(i,j,k)
+            ekh(i,j,k) = (ch1 + ch2) * ekm(i,j,k)
 
             ekm(i,j,k) = max(ekm(i,j,k),ekmin)
             ekh(i,j,k) = max(ekh(i,j,k),ekmin)
@@ -324,7 +324,7 @@ contains
             ekh(i,j,k) = (ch1 + ch2 * zlt(i,j,k)*deltai(k)) * ekm(i,j,k)
 
             ekm(i,j,k) = max(ekm(i,j,k),ekmin)
-			ekh(i,j,k) = max(ekh(i,j,k),ekmin)
+            ekh(i,j,k) = max(ekh(i,j,k),ekmin)
           endif
         end do
       end do
