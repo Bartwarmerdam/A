@@ -200,11 +200,12 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal,   only : i1,j1,kmax,k1,ih,jh,i2,j2,delta,ekmin,grav,zf,fkar,deltai, &
+  use modglobal,     only : i1,j1,kmax,k1,ih,jh,i2,j2,delta,ekmin,grav,zf,fkar,deltai, &
                           dxi,dyi,dzf,dzh
-  use modfields,   only : dthvdz,e120,u0,v0,w0,thvf
-  use modsurfdata, only : dudz,dvdz,z0m
-  use modmpi,      only : excjs
+  use modfields,     only : dthvdz,e120,u0,v0,w0,thvf
+  use modsurfdata,   only : dudz,dvdz,z0m
+  use modmpi,        only : excjs
+  use modruraldata,  only : applydamping
   implicit none
 
   real    :: strain2,mlen
@@ -285,6 +286,7 @@ contains
           end if
 
           ekm(i,j,k)  = mlen ** 2. * sqrt(2. * strain2)
+          call applydamping(ekm(i,j,k),i,j,k)   !< MK - apply damping function in modruraldata.f90 when it is used.
           ekh(i,j,k)  = ekm(i,j,k) / Prandtl
 
           ekm(i,j,k) = max(ekm(i,j,k),ekmin)
@@ -302,7 +304,8 @@ contains
             zlt(i,j,k) = delta(k)
             if (lmason) zlt(i,j,k) = (1. / zlt(i,j,k) ** nmason + 1. / ( fkar * (zf(k) + z0m(i,j)))**nmason) ** (-1./nmason)
             ekm(i,j,k) = cm * zlt(i,j,k) * e120(i,j,k)
-            ekh(i,j,k) = (ch1 + ch2) * ekm(i,j,k)
+            call applydamping(ekm(i,j,k),i,j,k)   !< MK - apply damping function in modruraldata.f90 when it is used.
+			ekh(i,j,k) = (ch1 + ch2) * ekm(i,j,k)
 
             ekm(i,j,k) = max(ekm(i,j,k),ekmin)
             ekh(i,j,k) = max(ekh(i,j,k),ekmin)
@@ -317,10 +320,11 @@ contains
             if (lmason) zlt(i,j,k) = (1. / zlt(i,j,k) ** nmason + 1. / ( fkar * (zf(k) + z0m(i,j)))**nmason) ** (-1./nmason)
 
             ekm(i,j,k) = cm * zlt(i,j,k) * e120(i,j,k)
+            call applydamping(ekm(i,j,k),i,j,k)   !< MK - apply damping function in modruraldata.f90 when it is used.
             ekh(i,j,k) = (ch1 + ch2 * zlt(i,j,k)*deltai(k)) * ekm(i,j,k)
 
             ekm(i,j,k) = max(ekm(i,j,k),ekmin)
-            ekh(i,j,k) = max(ekh(i,j,k),ekmin)
+			ekh(i,j,k) = max(ekh(i,j,k),ekmin)
           endif
         end do
       end do

@@ -107,9 +107,9 @@ contains
       fname(19:21) = cexpnr
       allocate(ncname(nvar,4))
       call ncinfo(tncname(1,:),'time','Time','s','time')
-      call ncinfo(ncname( 1,:),'u','West-East velocity','m/s','mttt')
-      call ncinfo(ncname( 2,:),'v','South-North velocity','m/s','tmtt')
-      call ncinfo(ncname( 3,:),'w','Vertical velocity','m/s','ttmt')
+      call ncinfo(ncname( 1,:),'u','West-East velocity','m/s','tttt')     !'mttt' MK: Changed to be able to be loaded in, in paraview
+      call ncinfo(ncname( 2,:),'v','South-North velocity','m/s','tttt')   !'tmtt'
+      call ncinfo(ncname( 3,:),'w','Vertical velocity','m/s','tttt')      !'ttmt'
       call ncinfo(ncname( 4,:),'qt','Total water specific humidity','1e-5kg/kg','tttt')
       call ncinfo(ncname( 5,:),'ql','Liquid water specific humidity','1e-5kg/kg','tttt')
       call ncinfo(ncname( 6,:),'thl','Liquid water potential temperature above 300K','K','tttt')

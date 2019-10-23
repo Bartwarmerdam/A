@@ -148,6 +148,7 @@ program DALES      !Version 4.0.0alpha
   !use modprojection,   only : initprojection, projection
   use modchem,         only : initchem,twostep
   use modcanopy,       only : initcanopy, canopy, exitcanopy
+  use modruralboundary,   only : initruralboundary, applyruralboundary, exitruralboundary ! MK 
 
 
   implicit none
@@ -186,6 +187,7 @@ program DALES      !Version 4.0.0alpha
   call initchem
   call initheterostats
   call initcanopy
+  call initruralboundary                !MK Initialize Rural Boundary for IBM
 
   !call initspectra2
   call initcape
@@ -252,6 +254,7 @@ program DALES      !Version 4.0.0alpha
     call samptend(tend_topbound)
     call poisson
     call samptend(tend_pois,lastterm=.true.)
+    call applyruralboundary                     ! MK Apply Immersed Boundary Method for the rural boundary
 
     call tstep_integrate                        ! Apply tendencies to all variables
     call boundary
@@ -320,6 +323,7 @@ program DALES      !Version 4.0.0alpha
   call exitfielddump
   call exitheterostats
   call exitcanopy
+  call exitruralboundary           !MK
   call exitmodules
 
 end program DALES

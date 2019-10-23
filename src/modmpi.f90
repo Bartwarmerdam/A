@@ -400,6 +400,134 @@ contains
   return
   end subroutine excjs
 
+  !< MK: copy of excjs but then with a boolean array
+  subroutine boolexcjs( a, sx, ex, sy, ey, sz,ez,ih,jh)
+  implicit none
+  integer sx, ex, sy, ey, sz, ez, ih, jh
+  logical a(sx-ih:ex+ih, sy-jh:ey+jh, sz:ez)
+  integer status(MPI_STATUS_SIZE)
+  integer ii, i, j, k
+  integer nssize, ewsize, bsize
+  logical,allocatable, dimension(:) :: sendb,recvb
+
+!   Calculate buffer size
+  nssize = jh*(ex - sx + 1 + 2*ih)*(ez - sz + 1)
+  ewsize = ih*(ey - sy + 1 + 2*jh)*(ez - sz + 1)
+  bsize = max( nssize, ewsize )
+
+  allocate( sendb(bsize),recvb(bsize) )
+
+!   Communicate north/south
+  if(nprocy .gt. 1)then
+    ii = 0
+    do j=1,jh
+    do k=sz,ez
+    do i=sx-ih,ex+ih
+      ii = ii + 1
+      sendb(ii) = a(i,ey-j+1,k)
+    enddo
+    enddo
+    enddo
+
+    call MPI_SENDRECV(  sendb,  nssize, MPI_LOGICAL, nbrnorth, 4, &
+                        recvb,  nssize, MPI_LOGICAL, nbrsouth, 4, &
+                        comm3d,  status, mpierr )
+
+    ii = 0
+    do j=1,jh
+    do k=sz,ez
+    do i=sx-ih,ex+ih
+      ii = ii + 1
+      a(i,sy-j,k) = recvb(ii)
+
+      sendb(ii) = a(i,sy+j-1,k)
+    enddo
+    enddo
+    enddo
+
+    call MPI_SENDRECV(  sendb,  nssize, MPI_LOGICAL, nbrsouth, 5, &
+                        recvb,  nssize, MPI_LOGICAL, nbrnorth, 5, &
+                        comm3d,  status, mpierr )
+
+    ii = 0
+    do j=1,jh
+    do k=sz,ez
+    do i=sx-ih,ex+ih
+      ii = ii + 1
+      a(i,ey+j,k) = recvb(ii)
+    enddo
+    enddo
+    enddo
+  else
+! Single processor, make sure the field is periodic
+    do j=1,jh
+    do k=sz,ez
+    do i=sx-ih,ex+ih
+      a(i,sy-j,k) = a(i,ey-j+1,k)
+      a(i,ey+j,k) = a(i,sy+j-1,k)
+    enddo
+    enddo
+    enddo
+  endif
+
+!   Communicate east/west
+  if(nprocx .gt. 1)then
+    ii = 0
+    do i=1,ih
+    do k=sz,ez
+    do j=sy-jh,ey+jh
+      ii = ii + 1
+      sendb(ii) = a(ex-i+1,j,k)
+    enddo
+    enddo
+    enddo
+
+    call MPI_SENDRECV(  sendb,  ewsize, MPI_LOGICAL, nbreast, 6, &
+                        recvb,  ewsize, MPI_LOGICAL, nbrwest, 6, &
+                        comm3d,  status, mpierr )
+
+    ii = 0
+    do i=1,ih
+    do k=sz,ez
+    do j=sy-jh,ey+jh
+      ii = ii + 1
+      a(sx-i,j,k) = recvb(ii)
+
+      sendb(ii) = a(sx+i-1,j,k)
+    enddo
+    enddo
+    enddo
+
+    call MPI_SENDRECV(  sendb,  ewsize, MPI_LOGICAL, nbrwest, 7, &
+                        recvb,  ewsize, MPI_LOGICAL, nbreast, 7, &
+                        comm3d,  status, mpierr )
+
+    ii = 0
+    do i=1,ih
+    do k=sz,ez
+    do j=sy-jh,ey+jh
+      ii = ii + 1
+      a(ex+i,j,k) = recvb(ii)
+    enddo
+    enddo
+    enddo
+  else
+! Single processor, make sure the field is periodic
+    do i=1,ih
+    do k=sz,ez
+    do j=sy-jh,ey+jh
+      a(sx-i,j,k) = a(ex-i+1,j,k)
+      a(ex+i,j,k) = a(sx+i-1,j,k)
+    enddo
+    enddo
+    enddo
+  endif
+
+  deallocate (sendb,recvb)
+
+  return
+  end subroutine boolexcjs
+
   subroutine slabsum(aver,ks,kf,var,ib,ie,jb,je,kb,ke,ibs,ies,jbs,jes,kbs,kes)
     implicit none
 
