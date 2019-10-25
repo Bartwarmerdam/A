@@ -83,7 +83,7 @@ contains
 
     write(6,*) 'allocating fields in ruralboundary'
 
-    allocate(limmersed_boundary (itot,jtot,kmax))
+    allocate(limmersed_boundary (itot+1,jtot+1,kmax))
     if (lnoslip) then
       allocate(lshear_x (2-ih:imax+ih,2-jh:jmax+jh,kmax))
       allocate(lshear_y (2-ih:imax+ih,2-jh:jmax+jh,kmax))
@@ -135,7 +135,7 @@ contains
           do j=1,jtot
             do k=1,kmax
               if (k.LE.bc_height(i,j)) then
-                limmersed_boundary(i,j,k)=.true.
+                limmersed_boundary(i+1,j+1,k)=.true.
               endif
             end do
           end do
@@ -147,7 +147,7 @@ contains
           do j=1,jtot
             do k=1,kmax
               if (i==NINT(itot*0.5).AND.j==NINT(jtot*0.5).AND.k.LE.NINT(kmax*0.5)) then
-                limmersed_boundary(i,j,k)=.true.
+                limmersed_boundary(i+1,j+1,k)=.true.
               endif
             end do
           end do
@@ -155,8 +155,10 @@ contains
         write(6,*) 'Succesfully generated immersed boundary in ruralboundary'
       endif
     endif
-
+    limmersed_boundary(1,:,:)=limmersed_boundary(itot+1,:,:)
+	limmersed_boundary(:,1,:)=limmersed_boundary(:,jtot+1,:)
     call MPI_BCAST(limmersed_boundary,itot*jtot*kmax,MPI_LOGICAL ,0,comm3d,mpierr)
+	
     call constructboundarytypes
 
     !if (lwallfunc) call mindistance
@@ -240,12 +242,12 @@ contains
     elseif(lwallfunc) then
       !< Find normal layers in x-direction
       do k=1,kmax
-        do j=2,jmax
-          do i=2,imax-1
+        do j=1,jmax
+          do i=2,imax
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
-            if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos+1,jpos,k))) then
-              lnorm_x(i+1,j,k)=.true.
+            if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos-1,jpos,k))) then
+              lnorm_x(i,j,k)=.true.
             endif
           end do
         end do
@@ -255,33 +257,35 @@ contains
 
       !< Find normal layers in y-direction
       do k=1,kmax
-        do i=2,imax
-          do j=2,jmax-1
+        do i=1,imax
+          do j=2,jmax
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
-            if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos+1,k))) then
-              lnorm_y(i,j+1,k)=.true.
+            if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos-1,k))) then
+              lnorm_y(i,j,k)=.true.
             endif
           end do
         end do
       end do
 
       !< Find normal layers in z-direction
-      do i=2,imax
-        do j=2,jmax
-          do k=1,kmax-1
+      do i=1,imax
+        do j=1,jmax
+          do k=2,kmax
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
-            if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k+1))) then
-              lnorm_z(i,j,k+1)=.true.
+            if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k-1))) then
+              lnorm_z(i,j,k)=.true.
             endif
           end do
         end do
       end do
     
-      write(6,*) 'before exjs:'
-      write(6,*) 'lnorm_x(6,:,2)=',lnorm_x(6,:,2)
-      write(6,*) 'lnorm_y(6,:,2)=',lnorm_y(6,:,2)
+	
+      write(6,*) 'before exjs: , myid=',myid
+      write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
+	  write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+	  write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
 
       call boolexcjs( lnorm_x  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lnorm_y  , 2,imax,2,jmax,1,kmax,ih,jh)
@@ -298,9 +302,11 @@ contains
     endif
     write(6,*) 'finished constructboundarytypes'
 
-    write(6,*) 'after exjs:'
-    write(6,*) 'lnorm_x(6,:,2)=',lnorm_x(6,:,2)
-    write(6,*) 'lnorm_y(6,:,2)=',lnorm_y(6,:,2)
+    write(6,*) 'after exjs:, myid=',myid
+    write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
+	write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+	write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+    !write(6,*) 'lnorm_y(6,:,2)=',lnorm_y(6,:,2)
     !write(6,*) 'lnorm_x(:,5,2)=',lnorm_x(:,5,2)
     !write(6,*) 'lnorm_y(:,5,2)=',lnorm_y(:,5,2)
     !write(6,*) 'lnorm_z(9,14,:)=',lnorm_z(9,14,:)
@@ -391,7 +397,7 @@ contains
     use modfields,      only : rhobf, rhobh, thl0, thlp, sv0, svp, e12p
     use modsubgriddata, only : ekm
     use modmicrodata,   only : nu_a
-    use modmpi,         only : myid, excjs
+    use modmpi,         only : myid, excjs,myidx
 
     implicit none
     integer  :: i, j, k, m, nc
@@ -440,7 +446,15 @@ contains
             !if(j==14 .and. myid ==0) write(6,*) 'myid=0,j=14'
             !if(j==3 .and. myid ==1) write(6,*) 'myid=1,j=3'
             !if(j==3 .and. myid ==0) write(6,*) 'myid=0,j=3'
+			!if(i==1 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==1,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+			!if(i==2 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==2,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+			!if(i==3 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==3,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+			!if(i==16 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==16,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+			!if(i==15 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==15,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+			!if(i==17 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==17,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
             if (lnorm_x(i,j,k)) then     !< Wall in x-direction
+			  !if(myidx==0 .and. j==4 .and. k==5) write(6,*) 'myidx=0 lnorm_x=T,i=',i
+			  !if(myidx==1 .and. j==4 .and. k==5) write(6,*) 'myidx=1 lnorm_x=T,i=',i
               emmo = 0.25  * ( &
                 ekm(i,j,k)+ekm(i,j-1,k)+ekm(i-1,j-1,k)+ekm(i-1,j,k)  )
 
