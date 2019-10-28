@@ -552,8 +552,8 @@ contains
                       dzf(k)  * ( ekm(i,j,k-1) + ekm(i-1,j,k-1) ) ) / &
                     ( 4.   * dzh(k) )
 
-              call wallaw(u0(i,j,k-1),0.5*dzh(k-1),nu_a,shear(i,j,k-1,9))
-              call wallaw(u0(i,j,k)  ,0.5*dzh(k)  ,nu_a,shear(i,j,k,10))
+              call wallaw(u0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,9))
+              call wallaw(u0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,10))
 
               up(i,j,k-1) = up(i,j,k-1) - 0.5 * emom * rhobh(k)/rhobf(k-1) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,9)/dzf(k-1)
               up(i,j,k)   = up(i,j,k)   + 0.5 * emom * rhobh(k)/rhobf(k) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,10) /dzf(k)
@@ -562,8 +562,8 @@ contains
                       dzf(k)  * ( ekm(i+1,j,k-1) + ekm(i,j,k-1) ) ) / &
                     ( 4.   * dzh(k) )
 
-              call wallaw(u0(i+1,j,k-1),0.5*dzh(k-1),nu_a,shear(i+1,j,k-1,9))
-              call wallaw(u0(i+1,j,k)  ,0.5*dzh(k)  ,nu_a,shear(i+1,j,k,10))
+              call wallaw(u0(i+1,j,k-1),0.5*dzf(k-1),nu_a,shear(i+1,j,k-1,9))
+              call wallaw(u0(i+1,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i+1,j,k,10))
 
               up(i+1,j,k-1) = up(i+1,j,k-1) - 0.5 * epom * rhobh(k)/rhobf(k-1) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k-1,9)/dzf(k-1)
               up(i+1,j,k)   = up(i+1,j,k)   + 0.5 * epom * rhobh(k)/rhobf(k) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k,10) /dzf(k)
@@ -571,8 +571,8 @@ contains
               eomm = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i,j-1,k)  )  + &
                 dzf(k) * ( ekm(i,j,k-1) + ekm(i,j-1,k-1) ) ) / ( 4.  * dzh(k) )
 
-              call wallaw(v0(i,j,k-1),0.5*dzh(k-1),nu_a,shear(i,j,k-1,11))
-              call wallaw(v0(i,j,k)  ,0.5*dzh(k)  ,nu_a,shear(i,j,k,12))
+              call wallaw(v0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,11))
+              call wallaw(v0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,12))
 
               vp(i,j,k-1) = vp(i,j,k-1) - 0.5 * eomm * rhobh(k)/rhobf(k-1) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,11)/dzf(k-1)
               vp(i,j,k)   = vp(i,j,k)   + 0.5 * eomm * rhobh(k)/rhobf(k) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,12)  /dzf(k)
@@ -580,8 +580,8 @@ contains
               eopm = ( dzf(k-1) * ( ekm(i,j+1,k)  + ekm(i,j,k)  )  + &
                 dzf(k) * ( ekm(i,j+1,k-1) + ekm(i,j,k-1) ) ) / ( 4.  * dzh(k) )
 
-              call wallaw(v0(i,j+1,k-1),0.5*dzh(k-1),nu_a,shear(i,j+1,k-1,11))
-              call wallaw(v0(i,j+1,k)  ,0.5*dzh(k)  ,nu_a,shear(i,j+1,k,12))
+              call wallaw(v0(i,j+1,k-1),0.5*dzf(k-1),nu_a,shear(i,j+1,k-1,11))
+              call wallaw(v0(i,j+1,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j+1,k,12))
 
               vp(i,j+1,k-1) = vp(i,j+1,k-1) - 0.5 * eopm * rhobh(k)/rhobf(k-1) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k-1,11)/dzf(k-1)
               vp(i,j+1,k)   = vp(i,j+1,k)   + 0.5 * eopm * rhobh(k)/rhobf(k) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k,12)  /dzf(k)
@@ -610,9 +610,9 @@ contains
                 damping(i,j-1,k) = min(damping(i,j-1,k),1.-exp(-(yplus*0.04)**3.))
               endif
               if(lnorm_z(i,j,k)) then
-                yplus = 0.5*dzh(k)*sqrt(sum(abs(shear(i,j,k,9:12))))/nu_a
+                yplus = 0.5*dzf(k)*sqrt(sum(abs(shear(i,j,k,9:12))))/nu_a
                 damping(i,j,k)   = min(damping(i,j,k),  1.-exp(-(yplus*0.04)**3.))
-                yplus = 0.5*dzh(k)*sqrt(sum(abs(shear(i,j,k-1,9:12))))/nu_a
+                yplus = 0.5*dzf(k)*sqrt(sum(abs(shear(i,j,k-1,9:12))))/nu_a
                 damping(i,j,k-1) = min(damping(i,j,k-1),1.-exp(-(yplus*0.04)**3.))
               endif
               !write(6,*) 'yplus = ',yplus,', dx = ',dx, ', sum(abs(shear))=',sum(abs(shear(i,j,k,1:12)))
@@ -628,12 +628,12 @@ contains
         do j=1,j1
 
           call wallaw(u0(i,j,1),0.5*dzh(1),nu_a,shear(i,j,1,10))
-          u0g(i,j)  = u0(i,j,1)  - shear(i,j,1,10)*dzh(1)/nu_a
-          umg(i,j)  = um(i,j,1)  - shear(i,j,1,10)*dzh(1)/nu_a
+          u0g(i,j)  = u0(i,j,1)  - shear(i,j,1,10)*dzf(1)/nu_a
+          umg(i,j)  = um(i,j,1)  - shear(i,j,1,10)*dzf(1)/nu_a
 
           call wallaw(v0(i,j,1),0.5*dzh(1),nu_a,shear(i,j,1,12))
-          v0g(i,j)  = v0(i,j,1)  - shear(i,j,1,12)*dzh(1)/nu_a
-          vmg(i,j)  = -vm(i,j,1) - shear(i,j,1,12)*dzh(1)/nu_a
+          v0g(i,j)  = v0(i,j,1)  - shear(i,j,1,12)*dzf(1)/nu_a
+          vmg(i,j)  = -vm(i,j,1) - shear(i,j,1,12)*dzf(1)/nu_a
 
           ekmg(i,j) = -ekm(i,j,1) + 2.*nu_a
 
