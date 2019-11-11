@@ -34,6 +34,9 @@ subroutine advecc_2nd(putin,putout)
 
   use modglobal, only : i1,ih,j1,jh,k1,kmax,dxi5,dyi5,dzi5,dzf,dzh,leq
   use modfields, only : u0, v0, w0, rhobf
+  use modruralboundary, only : lnorm_x, lnorm_y, lnorm_z, lruralboundary
+  use modmpi, only : myid
+  use modfields, only : svp
   implicit none
 
   real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1), intent(in)  :: putin !< Input: the cell centered field
@@ -50,6 +53,7 @@ subroutine advecc_2nd(putin,putout)
 !    end do
 !  end do
 
+  !if(myid==0) write(6,*) 'advecc voor: svp(7,8,10,1)=',svp(7,8,10,1)
   do k=1,kmax
     do j=2,j1
       do i=2,i1
@@ -67,6 +71,18 @@ subroutine advecc_2nd(putin,putout)
     end do
   end do
 
+  !if(myid==0) write(6,*) 'advecc voor leq: svp(7,8,10,1)=',svp(7,8,10,1)
+  !if(myid==0 .and. svp(7,8,10,1)>1E-30) then
+    !i=7
+    !j=8
+    !k=10
+    !write(6,*) 'u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) )* dxi5=',u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) )* dxi5
+    !write(6,*) '-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5=',-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5
+    !write(6,*) 'v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5=',v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5
+    !write(6,*) '-v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) )* dyi5=',-v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) )* dyi5
+  !endif
+  !if(myid==0) write(6,*) 'leq = ',leq
+
   if (leq) then ! equidistant grid
 
     do j=2,j1
@@ -78,7 +94,7 @@ subroutine advecc_2nd(putin,putout)
     end do
 
     do j=2,j1
-    do k=2,kmax         
+    do k=2,kmax
        do i=2,i1
           putout(i,j,k)  = putout(i,j,k)- (1./rhobf(k))*( &
                 w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)) &
@@ -110,6 +126,47 @@ subroutine advecc_2nd(putin,putout)
     end do
 
   end if
+  
+  !if(myid==0) write(6,*) 'advecc voor lruralboundary na leq: svp(7,8,10,1)=',svp(7,8,10,1)
+  
+  if (lruralboundary) then ! MK: Apply immersed boundary conditions at the locations of the walls
+    do i=2,i1
+      do j=2,j1
+        do k=1,kmax
+          if(myid==0 .and. i==7 .and. j==8 .and. k==10) then
+            !write(6,*) 'lnormx,lnormy,lnormz = ',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+            !write(6,*) 'op i-1, j-1, k-1: lnormx,lnormy,lnormz = ',lnorm_x(i-1,j,k),lnorm_y(i,j-1,k),lnorm_z(i,j,k-1)
+          endif
+          if (lnorm_x(i,j,k)) then
+            putout(i,j,k)=putout(i,j,k)+( &
+              !u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) ) &
+              -u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) ) &
+                )* dxi5
+          endif
+          if (lnorm_y(i,j,k)) then
+            putout(i,j,k)=putout(i,j,k)+( &
+              !v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) ) &
+              -v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) ) &
+              )* dyi5
+          endif
+          if (lnorm_z(i,j,k).and. (.not. k==1)) then
+            if (leq) then ! equidistant grid
+              putout(i,j,k)  = putout(i,j,k) + (1./rhobf(k))*( &
+                !w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)) &
+                -w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)) &
+                )*dzi5
+            else   ! non-equidistant grid
+              putout(i,j,k)  = putout(i,j,k) + (1./rhobf(k))*( &
+                !w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) * dzf(k) + rhobf(k) * putin(i,j,k) * dzf(k+1) ) / dzh(k+1) &
+                -w0(i,j,k ) * (rhobf(k-1) * putin(i,j,k-1) * dzf(k) + rhobf(k) * putin(i,j,k) * dzf(k-1) ) / dzh(k) &
+                )/ (2. * dzf(k))
+            endif
+          endif
+        end do
+      end do
+    end do
+  endif
+  !if(myid==0) write(6,*) 'advecc na: svp(7,8,10,1)=',svp(7,8,10,1)
 
 end subroutine advecc_2nd
 
@@ -117,8 +174,9 @@ end subroutine advecc_2nd
 !> Advection at the u point.
 subroutine advecu_2nd(putin, putout)
 
-  use modglobal, only : i1,ih,j1,jh,k1,kmax,dxiq,dyiq,dziq,dzf,dzh,leq
-  use modfields, only : u0, v0, w0, rhobf
+  use modglobal,    only : i1,ih,j1,jh,k1,kmax,dxiq,dyiq,dziq,dzf,dzh,leq,dxi5
+  use modfields,    only : u0, v0, w0, rhobf
+  use modruraldata, only : pres0
   implicit none
 
   real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1), intent(in) :: putin
@@ -152,7 +210,8 @@ subroutine advecu_2nd(putin, putout)
                 +(  &
                 (putin(i,j,k)+putin(i,jp,k))*(v0(i,jp,k)+v0(im,jp ,k)) &
                 -(putin(i,j,k)+putin(i,jm,k))*(v0(i,j  ,k)+v0(im,j  ,k)) &
-                )*dyiq )
+                )*dyiq ) !&
+                !- (pres0(i,j,k) - pres0(i-1,j,k))*dxi5        ! pressure correction term
 
       end do
     end do
@@ -233,8 +292,9 @@ end subroutine advecu_2nd
 !> Advection at the v point.
 subroutine advecv_2nd(putin, putout)
 
-  use modglobal, only : i1,ih,j1,jh,k1,kmax,dxiq,dyiq,dziq,dzf,dzh,leq
-  use modfields, only : u0, v0, w0, rhobf
+  use modglobal,    only : i1,ih,j1,jh,k1,kmax,dxiq,dyiq,dziq,dzf,dzh,leq,dyi5
+  use modfields,    only : u0, v0, w0, rhobf
+  use modruraldata, only : pres0
   implicit none
 
   real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1), intent(in)  :: putin !< Input: the v-field
@@ -269,7 +329,8 @@ subroutine advecv_2nd(putin, putout)
               +( &
               ( v0(i,jp,k)+v0(i,j,k))*(putin(i,j,k)+putin(i,jp,k)) &
               -(v0(i,jm,k)+v0(i,j,k))*(putin(i,j,k)+putin(i,jm,k)) &
-              )*dyiq )
+              )*dyiq ) !&
+              !- (pres0(i,j,k)-pres0(i,j-1,k))*dyi5    ! Pressure correction term
       end do
     end do
   end do
@@ -347,8 +408,9 @@ end subroutine advecv_2nd
 !> Advection at the w point.
 subroutine advecw_2nd(putin,putout)
 
-  use modglobal, only : i1,ih,j1,jh,k1,kmax,dxiq,dyiq,dziq,dzf,dzh,leq
-  use modfields, only : u0, v0, w0, rhobh
+  use modglobal,    only : i1,ih,j1,jh,k1,kmax,dxiq,dyiq,dziq,dzf,dzh,leq
+  use modfields,    only : u0, v0, w0, rhobh
+  use modruraldata, only : pres0
   implicit none
 
   real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1), intent(in)  :: putin !< Input: the w-field
@@ -393,7 +455,8 @@ subroutine advecw_2nd(putin,putout)
                 (rhobh(k) * putin(i,j,k) + rhobh(kp) * putin(i,j,kp) )*(w0(i,j,k) + w0(i,j,kp)) &
                -(rhobh(k) * putin(i,j,k) + rhobh(km) * putin(i,j,km) )*(w0(i,j,k) + w0(i,j,km)) &
                 )*dziq &
-                )
+                ) !&
+              !-2*(pres0(i,j,k)-pres0(i,j,k-1))/dzf(k)      ! Pressure correction term
 
         end do
       end do

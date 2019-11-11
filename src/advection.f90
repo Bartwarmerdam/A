@@ -33,6 +33,7 @@ subroutine advection
   use modsubgrid, only : lsmagorinsky
   use advec_hybrid, only : advecc_hybrid
   use advec_hybrid_f, only : advecc_hybrid_f
+  use modmpi, only : myid
   implicit none
   integer :: n
 
