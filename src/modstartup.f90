@@ -246,6 +246,7 @@ contains
 
     call testwctime
     ! Allocate and initialize core modules
+    call startruralbc
     call initglobal
     call initfields
     call inittestbed    !reads initial profiles from scm_in.nc, to be used in readinitfiles
@@ -412,7 +413,7 @@ contains
         if (ltestbed) then
 
           write(*,*) 'readinitfiles: testbed mode: profiles for initialization obtained from scm_in.nc'
-          
+
           do k=1,kmax
             height (k) = zf(k)
             thlprof(k) = tb_thl(1,k)
@@ -427,7 +428,7 @@ contains
           !thls
           !wtsurf
           !wqsurf
-         
+
         else
 
           open (ifinput,file='prof.inp.'//cexpnr)
@@ -444,7 +445,7 @@ contains
                 vprof  (k), &
                 e12prof(k)
           end do
-        
+
           close(ifinput)
 
         end if   !ltestbed
@@ -693,7 +694,7 @@ contains
       if (ltestbed) then
 
           write(*,*) 'readinitfiles: testbed mode: profiles for ls forcing obtained from scm_in.nc'
-          
+
           do k=1,kmax
             height (k) = zf(k)
             ug     (k) = tb_ug(1,k)
@@ -704,7 +705,7 @@ contains
             dqtdtls(k) = tb_qtadv(1,k)
             thlpcar(k) = tb_thladv(1,k)
           end do
-         
+
       else
 
         open (ifinput,file='lscale.inp.'//cexpnr)
@@ -919,7 +920,7 @@ contains
     if (rk3Step/=3) return
 
     if (timee<tnextrestart) dt_lim = min(dt_lim,tnextrestart-timee)
-    
+
     ! if trestart > 0, write a restartfile every trestart seconds and at the end
     ! if trestart = 0, write restart files only at the end of the simulation
     ! if trestart < 0, don't write any restart files
@@ -1097,7 +1098,7 @@ contains
             j >= js .and. j <= je) then
             if (.not. negval) then ! Avoid non-physical negative values
               field(i-is+2,j-js+2,klev) = field(i-is+2,j-js+2,klev) + (ran-0.5)*2.0*min(ampl,field(i-is+2,j-js+2,klev))
-            else 
+            else
               field(i-is+2,j-js+2,klev) = field(i-is+2,j-js+2,klev) + (ran-0.5)*2.0*ampl
             endif
 
@@ -1327,5 +1328,16 @@ contains
     deallocate(pb,tb)
 
   end subroutine baseprofs
+
+  subroutine startruralbc
+    use modglobal,    only : itot, jtot
+    use modruraldata, only : bc_height
+
+    implicit none
+
+    allocate(bc_height (itot+1,jtot+1))
+    bc_height(:,:)=0
+
+  end subroutine startruralbc
 
 end module modstartup

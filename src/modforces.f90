@@ -60,25 +60,28 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal, only : i1,j1,kmax,dzh,dzf,grav, lpressgrad
+  use modglobal, only : i1,j1,kmax,dzh,dzf,grav, lpressgrad,imax,jmax
   use modfields, only : sv0,up,vp,wp,thv0h,dpdxl,dpdyl,thvh
   use moduser,   only : force_user
   use modmicrodata, only : imicro, imicro_bulk, imicro_bin, imicro_sice,iqr
+  use modmpi,    only : myidx,myidy
+  use modruralboundary, only : bc_height
   implicit none
 
-  integer i, j, k, jm, jp, km, kp
+  integer i, j, k, jm, jp, km, kp, kmin
 
   if (lforce_user) call force_user
 
   if((imicro==imicro_sice).or.(imicro==imicro_bulk).or.(imicro==imicro_bin)) then
-    do k=2,kmax
-      kp=k+1
-      km=k-1
     do j=2,j1
       jp=j+1
       jm=j-1
     do i=2,i1
-    
+      kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+    do k=(kmin+1),kmax
+      kp=k+1
+      km=k-1
+
     if (lpressgrad) then
       up(i,j,k) = up(i,j,k) - dpdxl(k)      !RN LS pressure gradient force in x,y directions;
       vp(i,j,k) = vp(i,j,k) - dpdyl(k)
@@ -89,13 +92,14 @@ contains
     end do
     end do
   else
-    do k=2,kmax
-      kp=k+1
-      km=k-1
     do j=2,j1
       jp=j+1
       jm=j-1
     do i=2,i1
+      kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+    do k=(kmin+1),kmax
+      kp=k+1
+      km=k-1
       up(i,j,k) = up(i,j,k) - dpdxl(k)
       vp(i,j,k) = vp(i,j,k) - dpdyl(k)
       wp(i,j,k) = wp(i,j,k) + grav*(thv0h(i,j,k)-thvh(k))/thvh(k)
@@ -104,21 +108,22 @@ contains
     end do
   end if
 
-!     --------------------------------------------
-!     special treatment for lowest full level: k=1
-!     --------------------------------------------
+!     -----------------------------------------------
+!     special treatment for lowest full level: k=kmin
+!     -----------------------------------------------
 
   do j=2,j1
     jp = j+1
     jm = j-1
   do i=2,i1
+    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
 
     if (lpressgrad) then
-      up(i,j,1) = up(i,j,1) - dpdxl(1)
-      vp(i,j,1) = vp(i,j,1) - dpdyl(1)
+      up(i,j,kmin) = up(i,j,kmin) - dpdxl(kmin)
+      vp(i,j,kmin) = vp(i,j,kmin) - dpdyl(kmin)
     end if
 
-    wp(i,j,1) = 0.0
+    wp(i,j,kmin) = 0.0
 
   end do
   end do
@@ -141,24 +146,27 @@ contains
 !**   interface.                                                  |
 !     ----------                                                  |
 !                                                                 |
-!     *coriolis* is called from *program*.                          |
+!     *coriolis* is called from *program*.                        |
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal, only : i1,j1,kmax,dzh,dzf,cu,cv,om22,om23
+  use modglobal, only : i1,j1,kmax,dzh,dzf,cu,cv,om22,om23, imax, jmax
   use modfields, only : u0,v0,w0,up,vp,wp
+  use modruraldata, only : bc_height
+  use modmpi,    only : myidx, myidy
   implicit none
 
-  integer i, j, k, jm, jp, km, kp
+  integer i, j, k, jm, jp, km, kp, kmin
 
-
-  do k=2,kmax
-    kp=k+1
-    km=k-1
   do j=2,j1
     jp=j+1
     jm=j-1
   do i=2,i1
+    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+  do k=(kmin+1),kmax
+    kp=k+1
+    km=k-1
+
 
     up(i,j,k) = up(i,j,k)+ cv*om23 &
           +(v0(i,j,k)+v0(i,jp,k)+v0(i-1,j,k)+v0(i-1,jp,k))*om23*0.25 &
@@ -172,28 +180,29 @@ contains
                 +    dzf(k)  * (u0(i,j,km) + u0(i+1,j,km))  ) / dzh(k) ) &
                 * om22*0.25
   end do
+!     -------------------------------------------end k-loop
+  end do
   end do
 !     -------------------------------------------end i&j-loop
-  end do
-!     -------------------------------------------end k-loop
 
-!     --------------------------------------------
-!     special treatment for lowest full level: k=1
-!     --------------------------------------------
+!     -----------------------------------------------
+!     special treatment for lowest full level: k=kmin
+!     -----------------------------------------------
 
   do j=2,j1
     jp = j+1
     jm = j-1
   do i=2,i1
+    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
 
-    up(i,j,1) = up(i,j,1)  + cv*om23 &
-          +(v0(i,j,1)+v0(i,jp,1)+v0(i-1,j,1)+v0(i-1,jp,1))*om23*0.25 &
-          -(w0(i,j,1)+w0(i,j ,2)+w0(i-1,j,2)+w0(i-1,j ,1))*om22*0.25
+    up(i,j,kmin) = up(i,j,kmin)  + cv*om23 &
+          +(v0(i,j,kmin)+v0(i,jp,kmin)+v0(i-1,j,kmin)+v0(i-1,jp,kmin))*om23*0.25 &
+          -(w0(i,j,kmin)+w0(i,j ,kmin+1)+w0(i-1,j,kmin+1)+w0(i-1,j ,kmin))*om22*0.25
 
-    vp(i,j,1) = vp(i,j,1) - cu*om23 &
-          -(u0(i,j,1)+u0(i,jm,1)+u0(i+1,jm,1)+u0(i+1,j,1))*om23*0.25
+    vp(i,j,kmin) = vp(i,j,kmin) - cu*om23 &
+          -(u0(i,j,kmin)+u0(i,jm,kmin)+u0(i+1,jm,kmin)+u0(i+1,j,kmin))*om23*0.25
 
-    wp(i,j,1) = 0.0
+    wp(i,j,kmin) = 0.0
 
   end do
   end do

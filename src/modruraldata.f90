@@ -14,6 +14,7 @@ module modruraldata
 
   !< Field for the wall shear stress
   real, allocatable    :: damping(:,:,:)
+  integer, allocatable :: bc_height(:,:)     !< Height of immersed boundary at grid pos x,y
 
 contains
   subroutine applydamping(ekm,i,j,k)

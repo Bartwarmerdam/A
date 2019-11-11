@@ -166,7 +166,7 @@ contains
     call MPI_BCAST(phiwp                      ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(R10                        ,            1, MY_REAL    , 0, comm3d, mpierr)
     call MPI_BCAST(lsplitleaf                 ,            1, MPI_LOGICAL, 0, comm3d, mpierr)
-    
+
     call MPI_BCAST(land_use(1:mpatch,1:mpatch),mpatch*mpatch, MPI_INTEGER, 0, comm3d, mpierr)
 
     if(lCO2Ags .and. (.not. lrsAgs)) then
@@ -684,20 +684,21 @@ contains
       if (lsplitleaf) then
         allocate(PARdirField   (2:i1,2:j1))
         allocate(PARdifField   (2:i1,2:j1))
-      endif  
+      endif
     endif
     return
   end subroutine initsurface
 
 !> Calculates the interaction with the soil, the surface temperature and humidity, and finally the surface fluxes.
   subroutine surface
-    use modglobal,  only : i1,i2,j1,j2,fkar,zf,cu,cv,nsv,ijtot,rd,rv
-    use modfields,  only : thl0, qt0, u0, v0, u0av, v0av
-    use modmpi,     only : my_real, mpierr, comm3d, mpi_sum, excj, excjs, mpi_integer
-    use moduser,    only : surf_user
+    use modglobal,    only : i1,i2,j1,j2,fkar,zf,cu,cv,nsv,ijtot,rd,rv,imax,jmax,dzf
+    use modfields,    only : thl0, qt0, u0, v0, u0av, v0av
+    use modmpi,       only : my_real, mpierr, comm3d, mpi_sum, excj, excjs, mpi_integer, myidx, myidy
+    use moduser,      only : surf_user
+    use modruraldata, only : bc_height
     implicit none
 
-    integer  :: i, j, n, patchx, patchy
+    integer  :: i, j, n, patchx, patchy ,k !MK: k for applying surface parameterization at the height of the ground
     real     :: upcu, vpcv, horv, horvav, horvpatch(xpatches,ypatches)
     real     :: upatch(xpatches,ypatches), vpatch(xpatches,ypatches)
     real     :: Supatch(xpatches,ypatches), Svpatch(xpatches,ypatches)
@@ -725,10 +726,11 @@ contains
 
       do j = 2, j1
         do i = 2, i1
+          k=bc_height(i+myidx*imax,j+myidy*jmax)
           patchx = patchxnr(i)
           patchy = patchynr(j)
-          upatch(patchx,patchy) = upatch(patchx,patchy) + 0.5 * (u0(i,j,1) + u0(i+1,j,1))
-          vpatch(patchx,patchy) = vpatch(patchx,patchy) + 0.5 * (v0(i,j,1) + v0(i,j+1,1))
+          upatch(patchx,patchy) = upatch(patchx,patchy) + 0.5 * (u0(i,j,k+1) + u0(i+1,j,k+1))
+          vpatch(patchx,patchy) = vpatch(patchx,patchy) + 0.5 * (v0(i,j,k+1) + v0(i,j+1,k+1))
           Npatch(patchx,patchy) = Npatch(patchx,patchy) + 1
         enddo
       enddo
@@ -759,19 +761,20 @@ contains
 
       do j = 2, j1
         do i = 2, i1
+          k=bc_height(i+myidx*imax,j+myidy*jmax)
           if(lhetero) then
             patchx = patchxnr(i)
             patchy = patchynr(j)
           endif
 
           ! 3     -   Calculate the drag coefficient and aerodynamic resistance
-          Cm(i,j) = fkar ** 2. / (log(zf(1) / z0m(i,j)) - psim(zf(1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j))) ** 2.
-          Cs(i,j) = fkar ** 2. / (log(zf(1) / z0m(i,j)) - psim(zf(1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j))) / &
-          (log(zf(1) / z0h(i,j)) - psih(zf(1) / obl(i,j)) + psih(z0h(i,j) / obl(i,j)))
+          Cm(i,j) = fkar ** 2. / (log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j))) ** 2.
+          Cs(i,j) = fkar ** 2. / (log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j))) / &
+          (log(0.5*dzf(k+1) / z0h(i,j)) - psih(0.5*dzf(k+1) / obl(i,j)) + psih(z0h(i,j) / obl(i,j)))
 
           if(lmostlocal) then
-            upcu  = 0.5 * (u0(i,j,1) + u0(i+1,j,1)) + cu
-            vpcv  = 0.5 * (v0(i,j,1) + v0(i,j+1,1)) + cv
+            upcu  = 0.5 * (u0(i,j,k+1) + u0(i+1,j,k+1)) + cu
+            vpcv  = 0.5 * (v0(i,j,k+1) + v0(i,j+1,k+1)) + cv
             horv  = sqrt(upcu ** 2. + vpcv ** 2.)
             horv  = max(horv, 0.1)
             ra(i,j) = 1. / ( Cs(i,j) * horv )
@@ -779,7 +782,7 @@ contains
             if (lhetero) then
               ra(i,j) = 1. / ( Cs(i,j) * horvpatch(patchx,patchy) )
             else
-              horvav  = sqrt(u0av(1) ** 2. + v0av(1) ** 2.)
+              horvav  = sqrt(u0av(k+1) ** 2. + v0av(k+1) ** 2.)
               horvav  = max(horvav, 0.1)
               ra(i,j) = 1. / ( Cs(i,j) * horvav )
             endif
@@ -812,11 +815,12 @@ contains
     if(isurf <= 2) then
       do j = 2, j1
         do i = 2, i1
-          upcu   = 0.5 * (u0(i,j,1) + u0(i+1,j,1)) + cu
-          vpcv   = 0.5 * (v0(i,j,1) + v0(i,j+1,1)) + cv
+          k=bc_height(i+myidx*imax,j+myidy*jmax)
+          upcu   = 0.5 * (u0(i,j,k+1) + u0(i+1,j,k+1)) + cu
+          vpcv   = 0.5 * (v0(i,j,k+1) + v0(i,j+1,k+1)) + cv
           horv   = sqrt(upcu ** 2. + vpcv ** 2.)
           horv   = max(horv, 0.1)
-          horvav = sqrt(u0av(1) ** 2. + v0av(1) ** 2.)
+          horvav = sqrt(u0av(k+1) ** 2. + v0av(k+1) ** 2.)
           horvav = max(horvav, 0.1)
 
           if(lhetero) then
@@ -834,8 +838,8 @@ contains
             endif
           end if
 
-          thlflux(i,j) = - ( thl0(i,j,1) - tskin(i,j) ) / ra(i,j)
-          qtflux(i,j) = - (qt0(i,j,1)  - qskin(i,j)) / ra(i,j)
+          thlflux(i,j) = - ( thl0(i,j,k+1) - tskin(i,j) ) / ra(i,j)
+          qtflux(i,j) = - (qt0(i,j,k+1)  - qskin(i,j)) / ra(i,j)
 
           if(lhetero) then
             do n=1,nsv
@@ -849,13 +853,13 @@ contains
 
           if(lCO2Ags) svflux(i,j,indCO2) = CO2flux(i,j)
 
-          phimzf = phim(zf(1)/obl(i,j))
-          phihzf = phih(zf(1)/obl(i,j))
-          
-          dudz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(upcu/horv)
-          dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(vpcv/horv)
-          dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*zf(1))
-          dqtdz (i,j) = - qtflux(i,j)  / ustar(i,j) * phihzf / (fkar*zf(1))
+          phimzf = phim(0.5*dzf(k+1)/obl(i,j))
+          phihzf = phih(0.5*dzf(k+1)/obl(i,j))
+
+          dudz  (i,j) = ustar(i,j) * phimzf / (fkar*0.5*dzf(k+1))*(upcu/horv)
+          dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*0.5*dzf(k+1))*(vpcv/horv)
+          dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*0.5*dzf(k+1))
+          dqtdz (i,j) = - qtflux(i,j)  / ustar(i,j) * phihzf / (fkar*0.5*dzf(k+1))
         end do
       end do
 
@@ -874,7 +878,7 @@ contains
 
         do j = 2, j1
           do i = 2, i1
-
+            k=bc_height(i+myidx*imax,j+myidy*jmax)
             thlflux(i,j) = wtsurf
             qtflux (i,j) = wqsurf
 
@@ -882,18 +886,18 @@ contains
               svflux(i,j,n) = wsvsurf(n)
             enddo
 
-            phimzf = phim(zf(1)/obl(i,j))
-            phihzf = phih(zf(1)/obl(i,j))
-            
-            upcu  = 0.5 * (u0(i,j,1) + u0(i+1,j,1)) + cu
-            vpcv  = 0.5 * (v0(i,j,1) + v0(i,j+1,1)) + cv
+            phimzf = phim(0.5*dzf(k+1)/obl(i,j))
+            phihzf = phih(0.5*dzf(k+1)/obl(i,j))
+
+            upcu  = 0.5 * (u0(i,j,k+1) + u0(i+1,j,k+1)) + cu
+            vpcv  = 0.5 * (v0(i,j,k+1) + v0(i,j+1,k+1)) + cv
             horv  = sqrt(upcu ** 2. + vpcv ** 2.)
             horv  = max(horv, 0.1)
 
-            dudz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(upcu/horv)
-            dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(vpcv/horv)
-            dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*zf(1))
-            dqtdz (i,j) = - qtflux(i,j)  / ustar(i,j) * phihzf / (fkar*zf(1))
+            dudz  (i,j) = ustar(i,j) * phimzf / (fkar*0.5*dzf(k+1))*(upcu/horv)
+            dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*0.5*dzf(k+1))*(vpcv/horv)
+            dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*0.5*dzf(k+1))
+            dqtdz (i,j) = - qtflux(i,j)  / ustar(i,j) * phihzf / (fkar*0.5*dzf(k+1))
           end do
         end do
 
@@ -919,26 +923,27 @@ contains
 
       do j = 2, j1
         do i = 2, i1
+          k=bc_height(i+myidx*imax,j+myidy*jmax)
           if(lhetero) then
             patchx = patchxnr(i)
             patchy = patchynr(j)
           endif
 
-          upcu   = 0.5 * (u0(i,j,1) + u0(i+1,j,1)) + cu
-          vpcv   = 0.5 * (v0(i,j,1) + v0(i,j+1,1)) + cv
+          upcu   = 0.5 * (u0(i,j,k+1) + u0(i+1,j,k+1)) + cu
+          vpcv   = 0.5 * (v0(i,j,k+1) + v0(i,j+1,k+1)) + cv
           horv   = sqrt(upcu ** 2. + vpcv ** 2.)
           horv   = max(horv, 0.1)
-          horvav = sqrt(u0av(1) ** 2. + v0av(1) ** 2.)
+          horvav = sqrt(u0av(k+1) ** 2. + v0av(k+1) ** 2.)
           horvav = max(horvav, 0.1)
           if( isurf == 4) then
             if(lmostlocal) then
-              ustar (i,j) = fkar * horv  / (log(zf(1) / z0m(i,j)) - psim(zf(1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j)))
+              ustar (i,j) = fkar * horv  / (log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j)))
             else
               if(lhetero) then
-                ustar (i,j) = fkar * horvpatch(patchx,patchy) / (log(zf(1) / z0m(i,j)) - psim(zf(1) / obl(i,j))&
+                ustar (i,j) = fkar * horvpatch(patchx,patchy) / (log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / obl(i,j))&
                 + psim(z0m(i,j) / obl(i,j)))
               else
-                ustar (i,j) = fkar * horvav / (log(zf(1) / z0m(i,j)) - psim(zf(1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j)))
+                ustar (i,j) = fkar * horvav / (log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j)))
               endif
             end if
           else
@@ -967,20 +972,20 @@ contains
               svflux(i,j,n) = wsvsurf(n)
             enddo
           endif
-         
-          phimzf = phim(zf(1)/obl(i,j))
-          phihzf = phih(zf(1)/obl(i,j))
-          
-          dudz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(upcu/horv)
-          dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*zf(1))*(vpcv/horv)
-          dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*zf(1))
-          dqtdz (i,j) = - qtflux(i,j)  / ustar(i,j) * phihzf / (fkar*zf(1))
 
-          Cs(i,j) = fkar ** 2. / ((log(zf(1) / z0m(i,j)) - psim(zf(1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j))) * &
-          (log(zf(1) / z0h(i,j)) - psih(zf(1) / obl(i,j)) + psih(z0h(i,j) / obl(i,j))))
+          phimzf = phim(0.5*dzf(k+1)/obl(i,j))
+          phihzf = phih(0.5*dzf(k+1)/obl(i,j))
 
-          tskin(i,j) = min(max(thlflux(i,j) / (Cs(i,j) * horv),-10.),10.)  + thl0(i,j,1)
-          qskin(i,j) = min(max( qtflux(i,j) / (Cs(i,j) * horv),-5e-2),5e-2) + qt0(i,j,1)
+          dudz  (i,j) = ustar(i,j) * phimzf / (fkar*0.5*dzf(k+1))*(upcu/horv)
+          dvdz  (i,j) = ustar(i,j) * phimzf / (fkar*0.5*dzf(k+1))*(vpcv/horv)
+          dthldz(i,j) = - thlflux(i,j) / ustar(i,j) * phihzf / (fkar*0.5*dzf(k+1))
+          dqtdz (i,j) = - qtflux(i,j)  / ustar(i,j) * phihzf / (fkar*0.5*dzf(k+1))
+
+          Cs(i,j) = fkar ** 2. / ((log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / obl(i,j)) + psim(z0m(i,j) / obl(i,j))) * &
+          (log(0.5*dzf(k+1) / z0h(i,j)) - psih(0.5*dzf(k+1) / obl(i,j)) + psih(z0h(i,j) / obl(i,j))))
+
+          tskin(i,j) = min(max(thlflux(i,j) / (Cs(i,j) * horv),-10.),10.)  + thl0(i,j,k+1)
+          qskin(i,j) = min(max( qtflux(i,j) / (Cs(i,j) * horv),-5e-2),5e-2) + qt0(i,j,k+1)
 
           thlsl      = thlsl + tskin(i,j)
           qtsl       = qtsl  + qskin(i,j)
@@ -1027,14 +1032,15 @@ contains
 
 !> Calculate the surface humidity assuming saturation.
   subroutine qtsurf
-    use modglobal,   only : tmelt,bt,at,rd,rv,cp,es0,pref0,ijtot,i1,j1
-    use modfields,   only : qt0
-    !use modsurfdata, only : rs, ra
-    use modmpi,      only : my_real,mpierr,comm3d,mpi_sum,mpi_integer
+    use modglobal,     only : tmelt,bt,at,rd,rv,cp,es0,pref0,ijtot,i1,j1, imax, jmax
+    use modfields,     only : qt0
+    !use modsurfdata,   only : rs, ra
+    use modmpi,        only : my_real,mpierr,comm3d,mpi_sum,mpi_integer, myidx, myidy
+    use modruraldata,  only : bc_height
 
     implicit none
     real       :: exner, tsurf, qsatsurf, surfwet, es, qtsl
-    integer    :: i,j, patchx, patchy
+    integer    :: i,j, patchx, patchy, k
     integer    :: Npatch(xpatches,ypatches), SNpatch(xpatches,ypatches)
     real       :: lqts_patch(xpatches,ypatches)
 
@@ -1045,12 +1051,13 @@ contains
       qtsl = 0.
       do j = 2, j1
         do i = 2, i1
+          k=bc_height(i+myidx*imax,j+myidy*jmax)
           exner      = (ps / pref0)**(rd/cp)
           tsurf      = tskin(i,j) * exner
           es         = es0 * exp(at*(tsurf-tmelt) / (tsurf-bt))
           qsatsurf   = rd / rv * es / ps
           surfwet    = ra(i,j) / (ra(i,j) + rs(i,j))
-          qskin(i,j) = surfwet * qsatsurf + (1. - surfwet) * qt0(i,j,1)
+          qskin(i,j) = surfwet * qsatsurf + (1. - surfwet) * qt0(i,j,k+1)
           qtsl       = qtsl + qskin(i,j)
         end do
       end do
@@ -1065,6 +1072,7 @@ contains
         Npatch     = 0
         do j = 2, j1
           do i = 2, i1
+            k=bc_height(i+myidx*imax,j+myidy*jmax)
             patchx     = patchxnr(i)
             patchy     = patchynr(j)
             exner      = (ps_patch(patchx,patchy) / pref0)**(rd/cp)
@@ -1072,7 +1080,7 @@ contains
             es         = es0 * exp(at*(tsurf-tmelt) / (tsurf-bt))
             qsatsurf   = rd / rv * es / ps_patch(patchx,patchy)
             surfwet    = ra(i,j) / (ra(i,j) + rs(i,j))
-            qskin(i,j) = surfwet * qsatsurf + (1. - surfwet) * qt0(i,j,1)
+            qskin(i,j) = surfwet * qsatsurf + (1. - surfwet) * qt0(i,j,k+1)
 
             lqts_patch(patchx,patchy) = lqts_patch(patchx,patchy) + qskin(i,j)
             Npatch(patchx,patchy)     = Npatch(patchx,patchy)     + 1
@@ -1093,12 +1101,13 @@ contains
 
 !> Calculates the Obukhov length iteratively.
   subroutine getobl
-    use modglobal, only : zf, rv, rd, grav, i1, j1, i2, j2, cu, cv
-    use modfields, only : thl0av, qt0av, u0, v0, thl0, qt0, u0av, v0av
-    use modmpi,    only : my_real,mpierr,comm3d,mpi_sum,excj,mpi_integer
+    use modglobal,    only : zf, rv, rd, grav, i1, j1, i2, j2, cu, cv, imax, jmax, dzf
+    use modfields,    only : thl0av, qt0av, u0, v0, thl0, qt0, u0av, v0av
+    use modmpi,       only : my_real,mpierr,comm3d,mpi_sum,excj,mpi_integer,myidx,myidy
+    use modruraldata, only : bc_height
     implicit none
 
-    integer             :: i,j,iter,patchx,patchy
+    integer             :: i,j,iter,patchx,patchy, k
     real                :: thv, thvsl, L, horv2, oblavl, thvpatch(xpatches,ypatches), horvpatch(xpatches,ypatches)
     real                :: Rib, Lstart, Lend, fx, fxdif, Lold
     real                :: upcu, vpcv
@@ -1115,19 +1124,20 @@ contains
 
       do i=2,i1
         do j=2,j1
-          thv     =   thl0(i,j,1)  * (1. + (rv/rd - 1.) * qt0(i,j,1))
+          k=bc_height(i+myidx*imax,j+myidy*jmax)
+          thv     =   thl0(i,j,k+1)  * (1. + (rv/rd - 1.) * qt0(i,j,k+1))
           thvsl   =   tskin(i,j)   * (1. + (rv/rd - 1.) * qskin(i,j))
-          upcu    =   0.5 * (u0(i,j,1) + u0(i+1,j,1)) + cu
-          vpcv    =   0.5 * (v0(i,j,1) + v0(i,j+1,1)) + cv
+          upcu    =   0.5 * (u0(i,j,k+1) + u0(i+1,j,k+1)) + cu
+          vpcv    =   0.5 * (v0(i,j,k+1) + v0(i,j+1,k+1)) + cv
           horv2   =   upcu ** 2. + vpcv ** 2.
           horv2   =   max(horv2, 0.01)
 
           if(lhetero) then
             patchx = patchxnr(i)
             patchy = patchynr(j)
-            Rib    = grav / thvs_patch(patchx,patchy) * zf(1) * (thv - thvsl) / horv2
+            Rib    = grav / thvs_patch(patchx,patchy) * 0.5*dzf(k+1) * (thv - thvsl) / horv2
           else
-            Rib    = grav / thvs * zf(1) * (thv - thvsl) / horv2
+            Rib    = grav / thvs * 0.5*dzf(k+1) * (thv - thvsl) / horv2
           endif
 
           if (Rib == 0) then
@@ -1143,17 +1153,17 @@ contains
                 if(Rib > 0) L = 0.01
                 if(Rib < 0) L = -0.01
              end if
-             
+
              do while (.true.)
                 iter    = iter + 1
                 Lold    = L
-                fx      = Rib - zf(1) / L * (log(zf(1) / z0h(i,j)) - psih(zf(1) / L) + psih(z0h(i,j) / L)) /&
-                     (log(zf(1) / z0m(i,j)) - psim(zf(1) / L) + psim(z0m(i,j) / L)) ** 2.
+                fx      = Rib - 0.5*dzf(k+1) / L * (log(0.5*dzf(k+1) / z0h(i,j)) - psih(0.5*dzf(k+1) / L) + psih(z0h(i,j) / L)) /&
+                     (log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / L) + psim(z0m(i,j) / L)) ** 2.
                 Lstart  = L - 0.001*L
                 Lend    = L + 0.001*L
-                fxdif   = ( (- zf(1) / Lstart * (log(zf(1) / z0h(i,j)) - psih(zf(1) / Lstart) + psih(z0h(i,j) / Lstart)) /&
-                     (log(zf(1) / z0m(i,j)) - psim(zf(1) / Lstart) + psim(z0m(i,j) / Lstart)) ** 2.) - (-zf(1) / Lend * &
-                     (log(zf(1) / z0h(i,j)) - psih(zf(1) / Lend) + psih(z0h(i,j) / Lend)) / (log(zf(1) / z0m(i,j)) - psim(zf(1) / Lend)&
+                fxdif   = ( (- 0.5*dzf(k+1) / Lstart * (log(0.5*dzf(k+1) / z0h(i,j)) - psih(0.5*dzf(k+1) / Lstart) + psih(z0h(i,j) / Lstart)) /&
+                     (log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / Lstart) + psim(z0m(i,j) / Lstart)) ** 2.) - (-0.5*dzf(k+1) / Lend * &
+                     (log(0.5*dzf(k+1) / z0h(i,j)) - psih(0.5*dzf(k+1) / Lend) + psih(z0h(i,j) / Lend)) / (log(0.5*dzf(k+1) / z0m(i,j)) - psim(0.5*dzf(k+1) / Lend)&
                      + psim(z0m(i,j) / Lend)) ** 2.) ) / (Lstart - Lend)
                 L = L - fx / fxdif
                 if(Rib * L < 0. .or. abs(L) == 1e5) then
@@ -1182,13 +1192,14 @@ contains
 
       do j = 2, j1
         do i = 2, i1
+          k=bc_height(i+myidx*imax,j+myidy*jmax)
           patchx = patchxnr(i)
           patchy = patchynr(j)
-          upatch(patchx,patchy)    = upatch(patchx,patchy)    + 0.5 * (u0(i,j,1) + u0(i+1,j,1))
-          vpatch(patchx,patchy)    = vpatch(patchx,patchy)    + 0.5 * (v0(i,j,1) + v0(i,j+1,1))
+          upatch(patchx,patchy)    = upatch(patchx,patchy)    + 0.5 * (u0(i,j,k+1) + u0(i+1,j,k+1))
+          vpatch(patchx,patchy)    = vpatch(patchx,patchy)    + 0.5 * (v0(i,j,k+1) + v0(i,j+1,k+1))
           Npatch(patchx,patchy)    = Npatch(patchx,patchy)    + 1
-          lthlpatch(patchx,patchy) = lthlpatch(patchx,patchy) + thl0(i,j,1)
-          lqpatch(patchx,patchy)   = lqpatch(patchx,patchy)   + qt0(i,j,1)
+          lthlpatch(patchx,patchy) = lthlpatch(patchx,patchy) + thl0(i,j,k+1)
+          lqpatch(patchx,patchy)   = lqpatch(patchx,patchy)   + qt0(i,j,k+1)
           loblpatch(patchx,patchy) = loblpatch(patchx,patchy) + obl(i,j)
         enddo
       enddo
@@ -1282,7 +1293,7 @@ contains
           if(Rib > 0) L = 0.01
           if(Rib < 0) L = -0.01
        end if
-       
+
        do while (.true.)
           iter    = iter + 1
           Lold    = L
@@ -1359,7 +1370,7 @@ contains
 
   ! stability function Phi for momentum.
   ! Many functional forms of Phi have been suggested, see e.g. Optis 2015
-  ! Phi and Psi above are related by an integral and should in principle match, 
+  ! Phi and Psi above are related by an integral and should in principle match,
   ! currently they do not.
   ! FJ 2018: For very stable situations, zeta > 1 add cap to phi - the linear expression is valid only for zeta < 1
  function phim(zeta)
@@ -1379,7 +1390,7 @@ contains
     return
   end function phim
 
-   ! stability function Phi for heat.  
+   ! stability function Phi for heat.
  function phih(zeta)
     implicit none
     real             :: phih
@@ -1397,7 +1408,7 @@ contains
     return
   end function phih
 
-  
+
   function E1(x)
   implicit none
     real             :: E1
@@ -1409,7 +1420,7 @@ contains
     do k=1,99
       !E1sum = E1sum + (-1.0) ** (k + 0.0) * x ** (k + 0.0) / ( (k + 0.0) * factorial(k) )
        E1sum = E1sum + (-1.0 * x) ** k / ( k * factorial(k) )  ! FJ changed this for compilation with cray fortran
-                                                          
+
     end do
     E1 = -0.57721566490153286060 - log(x) - E1sum
 
@@ -1626,14 +1637,15 @@ contains
 !> Calculates surface resistance, temperature and moisture using the Land Surface Model
   subroutine do_lsm
 
-    use modglobal, only : pref0,boltz,cp,rd,rhow,rlv,i1,j1,rdt,ijtot,rk3step,nsv,xtime,rtimee,xday,xlat,xlon
+    use modglobal, only : pref0,boltz,cp,rd,rhow,rlv,i1,j1,rdt,ijtot,rk3step,nsv,xtime,rtimee,xday,xlat,xlon,imax,jmax
     use modfields, only : ql0,qt0,thl0,rhof,presf,svm
     use modraddata,only : iradiation,useMcICA,swd,swu,lwd,lwu,irad_par,swdir,swdif,zenith
-    use modmpi, only :comm3d,my_real,mpi_sum,mpierr,mpi_integer,myid
+    use modmpi, only :comm3d,my_real,mpi_sum,mpierr,mpi_integer,myid,myidx,myidy
     use modmicrodata, only : imicro,imicro_bulk
+    use modruraldata, only : bc_height
 
     real     :: f1, f2, f3, f4 ! Correction functions for Jarvis-Stewart
-    integer  :: i, j, k, itg
+    integer  :: i, j, k, itg, k_ground
     integer  :: patchx, patchy
     real     :: rk3coef,thlsl
 
@@ -1648,7 +1660,7 @@ contains
     real     :: Ag, PARdir, PARdif !Variables for 2leaf AGS
     real     :: MW_Air = 28.97
     real     :: MW_CO2 = 44
- 
+
     real     :: sinbeta, kdrbl, kdf, kdr, ref, ref_dir
     real     :: iLAI, fSL
     real     :: PARdfU, PARdfD, PARdfT, PARdrU, PARdrD, PARdrT, dirPAR, difPAR
@@ -1716,6 +1728,7 @@ contains
 
     do j = 2, j1
       do i = 2, i1
+        k_ground=bc_height(i+myidx*imax,j+myidy*jmax)
         if(lhetero) then
           patchx = patchxnr(i)
           patchy = patchynr(j)
@@ -1730,10 +1743,10 @@ contains
               lwdavn(i,j,2:nradtime) = lwdavn(i,j,1:nradtime-1)
               lwuavn(i,j,2:nradtime) = lwuavn(i,j,1:nradtime-1)
 
-              swdavn(i,j,1) = swd(i,j,1)
-              swuavn(i,j,1) = swu(i,j,1)
-              lwdavn(i,j,1) = lwd(i,j,1)
-              lwuavn(i,j,1) = lwu(i,j,1)
+              swdavn(i,j,k_ground+1) = swd(i,j,k_ground+1)
+              swuavn(i,j,k_ground+1) = swu(i,j,k_ground+1)
+              lwdavn(i,j,k_ground+1) = lwd(i,j,k_ground+1)
+              lwuavn(i,j,k_ground+1) = lwu(i,j,k_ground+1)
 
             end if
 
@@ -1744,11 +1757,11 @@ contains
 
             Qnet(i,j) = -(swdav + swuav + lwdav + lwuav)
           elseif(iradiation == irad_par .or. iradiation == 10) then !  Delta-eddington approach (2)  .or. rad_user (10)
-            swdav      = -swd(i,j,1)
-            Qnet(i,j)  = (swd(i,j,1) - swu(i,j,1) + lwd(i,j,1) - lwu(i,j,1))
+            swdav      = -swd(i,j,k_ground+1)
+            Qnet(i,j)  = (swd(i,j,k_ground+1) - swu(i,j,k_ground+1) + lwd(i,j,k_ground+1) - lwu(i,j,k_ground+1))
           else ! simple radiation scheme and RRTMG
-            Qnet(i,j) = -(swd(i,j,1) + swu(i,j,1) + lwd(i,j,1) + lwu(i,j,1))
-            swdav     = swd(i,j,1)
+            Qnet(i,j) = -(swd(i,j,k_ground+1) + swu(i,j,k_ground+1) + lwd(i,j,k_ground+1) + lwu(i,j,k_ground+1))
+            swdav     = swd(i,j,k_ground+1)
           end if
         else
           if(lhetero) then
@@ -1774,18 +1787,18 @@ contains
         f2  = min(1.e8, f2)
 
         ! Response of stomata to vapor deficit of atmosphere
-        esat = 0.611e3 * exp(17.2694 * (thl0(i,j,1) - 273.16) / (thl0(i,j,1) - 35.86))
+        esat = 0.611e3 * exp(17.2694 * (thl0(i,j,k_ground+1) - 273.16) / (thl0(i,j,k_ground+1) - 35.86))
         if(lhetero) then
-          e    = qt0(i,j,1) * ps_patch(patchx,patchy) / 0.622
+          e    = qt0(i,j,k_ground+1) * ps_patch(patchx,patchy) / 0.622
         else
-          e    = qt0(i,j,1) * ps / 0.622
+          e    = qt0(i,j,k_ground+1) * ps / 0.622
         endif
 
         f3   = 1. / exp(-gD(i,j) * (esat - e) / 100.)
 
         ! Response to temperature
         exnera  = (presf(1) / pref0) ** (rd/cp)
-        Tatm    = exnera * thl0(i,j,1) + (rlv / cp) * ql0(i,j,1)
+        Tatm    = exnera * thl0(i,j,k_ground+1) + (rlv / cp) * ql0(i,j,k_ground+1)
         f4      = 1./ (1. - 0.0016 * (298.0 - Tatm) ** 2.)
 
         rsveg(i,j)  = rsmin(i,j) / LAI(i,j) * f1 * f2 * f3! * f4 Not considered anymore
@@ -1829,14 +1842,14 @@ contains
             linags = .true.
           endif !linags
 
-          CO2ags  = svm(i,j,1,indCO2)/1000.0  !From ppb (usual DALES standard) to ppm
+          CO2ags  = svm(i,j,k_ground+1,indCO2)/1000.0  !From ppb (usual DALES standard) to ppm
 
           ! Calculate surface resistances using the plant physiological (A-gs) model
           ! Calculate the CO2 compensation concentration
-          CO2comp = rhof(1) * CO2comp298 * Q10CO2 ** (0.1 * ( thl0(i,j,1) - 298.0 ) )
+          CO2comp = rhof(1) * CO2comp298 * Q10CO2 ** (0.1 * ( thl0(i,j,k_ground+1) - 298.0 ) )
 
           ! Calculate the mesophyll conductance
-          gm       = gm298 * Q10gm ** (0.1 * ( thl0(i,j,1) - 298.0) ) / ( (1. + exp(0.3 * ( T1gm - thl0(i,j,1) ))) * (1. + exp(0.3 * (thl0(i,j,1) - T2gm))))
+          gm       = gm298 * Q10gm ** (0.1 * ( thl0(i,j,k_ground+1) - 298.0) ) / ( (1. + exp(0.3 * ( T1gm - thl0(i,j,k_ground+1) ))) * (1. + exp(0.3 * (thl0(i,j,k_ground+1) - T2gm))))
           gm       = gm / 1000   ! conversion from mm s-1 to m s-1
 
           ! calculate CO2 concentration inside the leaf (ci)
@@ -1866,7 +1879,7 @@ contains
           endif
 
           ! Calculate maximal gross primary production in high light conditions (Ag)
-          Ammax    = Ammax298 * Q10Am ** ( 0.1 * ( thl0(i,j,1) - 298.0) ) / ( (1.0 + exp(0.3 * ( T1Am - thl0(i,j,1) ))) * (1. + exp(0.3 * (thl0(i,j,1) - T2Am))) )
+          Ammax    = Ammax298 * Q10Am ** ( 0.1 * ( thl0(i,j,k_ground+1) - 298.0) ) / ( (1.0 + exp(0.3 * ( T1Am - thl0(i,j,k_ground+1) ))) * (1. + exp(0.3 * (thl0(i,j,k_ground+1) - T2Am))) )
 
           ! Calculate the effect of soil moisture stress on gross assimilation rate
           betaw    = max(1.0e-3,min(1.0,(phitot(i,j)-phiwp)/(phifc-phiwp)))
@@ -1882,8 +1895,8 @@ contains
           !PAR      = 0.40 * max(0.1,-swdav * cveg(i,j))
           PAR      = 0.50 * max(0.1,abs(swdav)) !Increase PAR to 50 SW
           if (lsplitleaf) then
-            PARdir   = 0.50 * max(0.1,abs(swdir(i,j,1)))
-            PARdif   = 0.50 * max(0.1,abs(swdif(i,j,1)))
+            PARdir   = 0.50 * max(0.1,abs(swdir(i,j,k_ground+1)))
+            PARdif   = 0.50 * max(0.1,abs(swdif(i,j,k_ground+1)))
           endif
 
           ! Calculate the light use efficiency
@@ -1940,7 +1953,7 @@ contains
             gc_inf   = LAI(i,j) * sum(weight_g * gnet)
 
           else !lsplitleaf
-          
+
           ! Calculate upscaling from leaf to canopy: net flow CO2 into the plant (An)
           AGSa1    = 1.0 / (1 - f0)
           Dstar    = D0 / (AGSa1 * (f0 - fmin))
@@ -2048,7 +2061,7 @@ contains
         fH      = rhof(1) * cp / ra(i,j)
 
         ! Allow for dew fall
-        if(qsat - qt0(i,j,1) < 0.) then
+        if(qsat - qt0(i,j,k_ground+1) < 0.) then
           rsveg(i,j)  = 0.
           rssoil(i,j) = 0.
         end if
@@ -2057,17 +2070,17 @@ contains
         Wl(i,j)   = min(Wl(i,j), Wlmx)
         cliq(i,j) = Wl(i,j) / Wlmx
 
-        fLEveg  = (1. - cliq(i,j)) * cveg(i,j) * rhof(1) * rlv / (ra(i,j) + rsveg(i,j))
-        fLEsoil = (1. - cveg(i,j))             * rhof(1) * rlv / (ra(i,j) + rssoil(i,j))
-        fLEliq  = cliq(i,j) * cveg(i,j)        * rhof(1) * rlv /  ra(i,j)
+        fLEveg  = (1. - cliq(i,j)) * cveg(i,j) * rhof(k_ground+1) * rlv / (ra(i,j) + rsveg(i,j))
+        fLEsoil = (1. - cveg(i,j))             * rhof(k_ground+1) * rlv / (ra(i,j) + rssoil(i,j))
+        fLEliq  = cliq(i,j) * cveg(i,j)        * rhof(k_ground+1) * rlv /  ra(i,j)
 
         fLE     = fLEveg + fLEsoil + fLEliq
 
         exnera  = (presf(1) / pref0) ** (rd/cp)
-        Tatm    = exnera * thl0(i,j,1) + (rlv / cp) * ql0(i,j,1)
+        Tatm    = exnera * thl0(i,j,k_ground+1) + (rlv / cp) * ql0(i,j,k_ground+1)
 
         Acoef   = Qnet(i,j) - boltz * tsurfm ** 4. + 4. * boltz * tsurfm ** 4. + fH * Tatm + fLE *&
-        (dqsatdT * tsurfm - qsat + qt0(i,j,1)) + lambdaskin(i,j) * tsoil(i,j,1)
+        (dqsatdT * tsurfm - qsat + qt0(i,j,k_ground+1)) + lambdaskin(i,j) * tsoil(i,j,1)
 !\todo  Acoef   = Qnet(i,j) - boltz * tsurfm ** 4. + 4. * boltz * tsurfm ** 4. + fH * Tatm + fLE *&
 !       (dqsatdT * tsurfm - qsat + qt0(i,j,1)) + lambdaskin(i,j) * tsoil(i,j,1)- fRs[t]*(1.0 - albedoav(i,j))*swdown
         Bcoef   = 4. * boltz * tsurfm ** 3. + fH + fLE * dqsatdT + lambdaskin(i,j)
@@ -2080,16 +2093,16 @@ contains
 
         Qnet(i,j)     = Qnet(i,j) - (boltz * tsurfm ** 4. + 4. * boltz * tsurfm ** 3. * (tskin(i,j) * exner - tsurfm))
         G0(i,j)       = lambdaskin(i,j) * ( tskin(i,j) * exner - tsoil(i,j,1) )
-        LE(i,j)       = - fLE * ( qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
+        LE(i,j)       = - fLE * ( qt0(i,j,k_ground+1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
 
-        LEveg         = - fLEveg  * ( qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
-        LEsoil        = - fLEsoil * ( qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
-        LEliq         = - fLEliq  * ( qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
+        LEveg         = - fLEveg  * ( qt0(i,j,k_ground+1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
+        LEsoil        = - fLEsoil * ( qt0(i,j,k_ground+1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
+        LEliq         = - fLEliq  * ( qt0(i,j,k_ground+1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat))
 
         if(LE(i,j) == 0.) then
           rs(i,j)     = 1.e8
         else
-          rs(i,j)     = - rhof(1) * rlv * (qt0(i,j,1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat)) / LE(i,j) - ra(i,j)
+          rs(i,j)     = - rhof(k_ground+1) * rlv * (qt0(i,j,k_ground+1) - (dqsatdT * (tskin(i,j) * exner - tsurfm) + qsat)) / LE(i,j) - ra(i,j)
         end if
 
         H(i,j)        = - fH  * ( Tatm - tskin(i,j) * exner )
@@ -2097,7 +2110,7 @@ contains
         tendskin(i,j) = Cskin(i,j) * (tskin(i,j) - tskinm(i,j)) * exner / rk3coef
 
         ! In case of dew formation, allow all water to enter skin reservoir Wl
-        if(qsat - qt0(i,j,1) < 0.) then
+        if(qsat - qt0(i,j,k_ground+1) < 0.) then
           Wl(i,j)       =  Wlm(i,j) - rk3coef * ((LEliq + LEsoil + LEveg) / (rhow * rlv))
         else
           Wl(i,j)       =  Wlm(i,j) - rk3coef * (LEliq / (rhow * rlv))

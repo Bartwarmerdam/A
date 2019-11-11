@@ -148,7 +148,7 @@ program DALES      !Version 4.0.0alpha
   !use modprojection,   only : initprojection, projection
   use modchem,         only : initchem,twostep
   use modcanopy,       only : initcanopy, canopy, exitcanopy
-  use modruralboundary,   only : initruralboundary, applyruralboundary, exitruralboundary ! MK 
+  use modruralboundary,   only : initruralboundary, applyruralboundary, exitruralboundary ! MK
 
 
   implicit none
@@ -159,6 +159,8 @@ program DALES      !Version 4.0.0alpha
 
   ! call initmpi initmpi depends on options in the namelist, call moved to startup
   call startup
+
+  call initruralboundary                !MK Initialize Rural Boundary for IBM
 
 !---------------------------------------------------------
 !      2     INITIALIZE STATISTICAL ROUTINES AND ADD-ONS
@@ -187,7 +189,6 @@ program DALES      !Version 4.0.0alpha
   call initchem
   call initheterostats
   call initcanopy
-  call initruralboundary                !MK Initialize Rural Boundary for IBM
 
   !call initspectra2
   call initcape
@@ -200,9 +201,9 @@ program DALES      !Version 4.0.0alpha
 
   do while (timeleft>0 .or. rk3step < 3)
     call tstep_update                           ! Calculate new timestep
+    write(6,*) 'timeleft = ',timeleft
     call timedep
     call samptend(tend_start,firstterm=.true.)
-
 !-----------------------------------------------------
 !   3.1   RADIATION
 !-----------------------------------------------------

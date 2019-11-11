@@ -6,14 +6,13 @@
 
 module modruralboundary
 
-  use modruraldata, only : lruralboundary, ldefrural, lnoslip, lwallfunc, damping
+  use modruraldata, only : lruralboundary, ldefrural, lnoslip, lwallfunc, damping, bc_height
   implicit none
   save
   public :: initruralboundary, exitruralboundary,&
             applyruralboundary
 
   ! Fields
-  integer, allocatable :: bc_height(:,:)     !< Height of immersed boundary at grid pos x,y
   logical, allocatable :: limmersed_boundary(:,:,:)        !< Boolean array where .true. is the immersed boundary
 
   !< Shear layers in x,y,z-directions
@@ -36,7 +35,7 @@ module modruralboundary
 contains
   subroutine initruralboundary
     use modglobal,  only : itot, jtot, ih, i1, jh, j1, imax, jmax, kmax, cexpnr, ifnamopt, ifinput, fname_options
-    use modmpi,     only : myid, mpi_logical, comm3d, mpierr, mpi_logical
+    use modmpi,     only : myid, mpi_logical, comm3d, mpierr, MPI_INTEGER
     implicit none
 
     integer       :: i, j, k, ierr
@@ -44,6 +43,7 @@ contains
 
     namelist/NAMRURALBOUNDARY/ lruralboundary, ldefrural, &
                                lwallfunc, lnoslip
+
 
     if(myid==0) then    !first myid
       open(ifnamopt,file=fname_options,status='old',iostat=ierr)
@@ -113,7 +113,6 @@ contains
       v0g(:,:)=0.
       vmg(:,:)=0.
     endif
-    if (ldefrural) allocate(bc_height (itot,jtot))
 
 
     ! Definition of ruralboundary
@@ -143,10 +142,11 @@ contains
         write(6,*) 'Succesfully read inputfile in ruralboundary'
       else           !< Simple block in the middle of the domain
       write(6,*) 'Generating standard boundary in ruralboundary'
+        bc_height(NINT(itot*0.5):(NINT(itot*0.5)+1),NINT(jtot*0.5):(NINT(jtot*0.5)+1))=NINT(kmax*0.5)
         do i=1,itot
           do j=1,jtot
             do k=1,kmax
-              if (i==NINT(itot*0.5).AND.j==NINT(jtot*0.5).AND.k.LE.NINT(kmax*0.5)) then
+              if (k.LE.bc_height(i,j)) then
                 limmersed_boundary(i+1,j+1,k)=.true.
               endif
             end do
@@ -156,9 +156,12 @@ contains
       endif
     endif
     limmersed_boundary(1,:,:)=limmersed_boundary(itot+1,:,:)
-	limmersed_boundary(:,1,:)=limmersed_boundary(:,jtot+1,:)
+    limmersed_boundary(:,1,:)=limmersed_boundary(:,jtot+1,:)
+    bc_height(itot+1,:)=bc_height(1,:)
+    bc_height(:,jtot+1)=bc_height(:,1)
+    call MPI_BCAST(bc_height,(itot+1)*(jtot+1),MPI_INTEGER ,0,comm3d,mpierr)
     call MPI_BCAST(limmersed_boundary,itot*jtot*kmax,MPI_LOGICAL ,0,comm3d,mpierr)
-	
+
     call constructboundarytypes
 
     !if (lwallfunc) call mindistance
@@ -166,7 +169,7 @@ contains
   end subroutine initruralboundary
 
   subroutine constructboundarytypes   !< Calculate the positions of the different boundary layers in multiple directions
-    
+
     use modglobal,  only : imax, i1, ih, jmax, j1, jh, kmax, k1
     use modmpi,     only : myid, myidx, myidy, boolexcjs
     implicit none
@@ -224,9 +227,9 @@ contains
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k+1))) then
-              lshear_z(i,j,k)=limmersed_boundary(ipos,jpos,k+1)
-              lshear_z(i,j,k+1)=limmersed_boundary(ipos,jpos,k)
-              lnorm_z(i,j,k+1)=.true.
+              !lshear_z(i,j,k)=limmersed_boundary(ipos,jpos,k+1)
+              !lshear_z(i,j,k+1)=limmersed_boundary(ipos,jpos,k)
+              !lnorm_z(i,j,k+1)=.true.
             endif
           end do
         end do
@@ -237,7 +240,7 @@ contains
       call boolexcjs( lshear_x  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lshear_y  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lshear_z  , 2,imax,2,jmax,1,kmax,ih,jh)
-      
+
     write(6,*) 'Succesfully found shear and normal layers in all directions'
     elseif(lwallfunc) then
       !< Find normal layers in x-direction
@@ -275,17 +278,16 @@ contains
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k-1))) then
-              lnorm_z(i,j,k)=.true.
+              !lnorm_z(i,j,k)=.true.
             endif
           end do
         end do
       end do
-    
-	
+
       write(6,*) 'before exjs: , myid=',myid
       write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-	  write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-	  write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+      write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+      write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
 
       call boolexcjs( lnorm_x  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lnorm_y  , 2,imax,2,jmax,1,kmax,ih,jh)
@@ -304,8 +306,8 @@ contains
 
     write(6,*) 'after exjs:, myid=',myid
     write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-	write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-	write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+    write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+    write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
     !write(6,*) 'lnorm_y(6,:,2)=',lnorm_y(6,:,2)
     !write(6,*) 'lnorm_x(:,5,2)=',lnorm_x(:,5,2)
     !write(6,*) 'lnorm_y(:,5,2)=',lnorm_y(:,5,2)
@@ -349,7 +351,7 @@ contains
 !          end do
 !        end do
 !      end do
-!    end do  
+!    end do
 !
 !    return
 !  end subroutine mindistance
@@ -358,6 +360,7 @@ contains
     use modmpi, only : myid
     implicit none
 
+    deallocate(bc_height)
     !if (.not. (myid==0)) return
     if (.not. (lruralboundary)) return
     if(myid==0) write(6,*) 'Starting with exitruralboundary'
@@ -385,7 +388,6 @@ contains
     !write(6,*) 'deallocating lnorm_z'
     deallocate(lnorm_z)
     !write(6,*) 'deallocating bc_height'
-    if (ldefrural) deallocate(bc_height)
     deallocate(limmersed_boundary)
     if(myid==0) write(6,*) 'Finished with exitruralboundary'
     return
@@ -406,13 +408,13 @@ contains
     real     :: yplus
 
     integer  :: maxlocx(3)
-    
+
     !if (.not. (myid==0)) return
     if (.not. (lruralboundary)) return
 
     if (myid==0) then
-      write(6,*) 'Starting with applyruralboundary, t = ',timee
-      write(6,*) 'The timestep dt = ',dt
+      !write(6,*) 'Starting with applyruralboundary, t = ',timee
+      !write(6,*) 'The timestep dt = ',dt
     endif
     !write(6,*) 'um,vm,wm = ',um(2,2,2),',',vm(2,2,2),',',wm(2,2,2)
 
@@ -446,15 +448,15 @@ contains
             !if(j==14 .and. myid ==0) write(6,*) 'myid=0,j=14'
             !if(j==3 .and. myid ==1) write(6,*) 'myid=1,j=3'
             !if(j==3 .and. myid ==0) write(6,*) 'myid=0,j=3'
-			!if(i==1 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==1,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==2 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==2,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==3 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==3,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==16 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==16,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==15 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==15,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==17 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==17,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+            !if(i==1 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==1,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+            !if(i==2 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==2,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+            !if(i==3 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==3,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+            !if(i==16 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==16,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+            !if(i==15 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==15,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+            !if(i==17 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==17,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
             if (lnorm_x(i,j,k)) then     !< Wall in x-direction
-			  !if(myidx==0 .and. j==4 .and. k==5) write(6,*) 'myidx=0 lnorm_x=T,i=',i
-			  !if(myidx==1 .and. j==4 .and. k==5) write(6,*) 'myidx=1 lnorm_x=T,i=',i
+              !if(myidx==0 .and. j==4 .and. k==5) write(6,*) 'myidx=0 lnorm_x=T,i=',i
+              !if(myidx==1 .and. j==4 .and. k==5) write(6,*) 'myidx=1 lnorm_x=T,i=',i
               emmo = 0.25  * ( &
                 ekm(i,j,k)+ekm(i,j-1,k)+ekm(i-1,j-1,k)+ekm(i-1,j,k)  )
 
@@ -622,7 +624,6 @@ contains
         end do
       end do
     end do
-    !write(6,*) 'Lowest full level reached'
     if(lwallfunc) then !< special treatment for lowest full level: k=1
       do i=1,i1
         do j=1,j1
@@ -641,7 +642,7 @@ contains
       end do
       do i=2,i1
         do j=2,j1
-          
+
           if (lnorm_x(i,j,1)) then     !< Wall in x-direction
             emmo = 0.25  * ( &
                 ekm(i,j,1)+ekm(i,j-1,1)+ekm(i-1,j-1,1)+ekm(i-1,j,1)  )
@@ -701,19 +702,19 @@ contains
 
           ! Wall shear with the ground
           ! write(6,*) 'i=',i
-          emom = ( dzh(1) * ( ekm(i,j,1)  + ekm(i-1,j,1)  )  + &
-                   dzf(1) * ( ekmg(i,j) + ekmg(i-1,j)     ) ) / &
-                 ( 4.   * dzh(1) )
+          !emom = ( dzh(1) * ( ekm(i,j,1)  + ekm(i-1,j,1)  )  + &
+          !         dzf(1) * ( ekmg(i,j) + ekmg(i-1,j)     ) ) / &
+          !       ( 4.   * dzh(1) )
 
-          up(i,j,1)   = up(i,j,1)  - shear(i,j,1,10) /dzf(1) + emom * rhobh(1)/rhobf(1) *((u0(i,j,1)-u0g(i,j))/dzh(1))/dzh(1)
+          !up(i,j,1)   = up(i,j,1)  - shear(i,j,1,10) /dzf(1) + emom * rhobh(1)/rhobf(1) *((u0(i,j,1)-u0g(i,j))/dzh(1))/dzh(1)
 
-          eomm = ( dzh(1) * ( ekm(i,j,1)  + ekm(i,j-1,1)  )  + &
-                   dzf(1) * ( ekmg(i,j)   + ekmg(i,j-1)   ) ) / ( 4.  * dzh(1) )
+          !eomm = ( dzh(1) * ( ekm(i,j,1)  + ekm(i,j-1,1)  )  + &
+          !         dzf(1) * ( ekmg(i,j)   + ekmg(i,j-1)   ) ) / ( 4.  * dzh(1) )
 
-          vp(i,j,1)   = vp(i,j,1) - shear(i,j,1,12)  /dzf(1)   + eomm * rhobh(1)/rhobf(1) *((v0(i,j,1)-v0g(i,j))/dzh(1))/dzh(1)
+          !vp(i,j,1)   = vp(i,j,1) - shear(i,j,1,12)  /dzf(1)   + eomm * rhobh(1)/rhobf(1) *((v0(i,j,1)-v0g(i,j))/dzh(1))/dzh(1)
 
-          yplus = 0.5*dzh(1)*sqrt(sum(abs(shear(i,j,1,9:12))))/nu_a
-          damping(i,j,1)   = min(damping(i,j,1),  1.-exp(-(yplus*0.04)**3.))
+          !yplus = 0.5*dzh(1)*sqrt(sum(abs(shear(i,j,1,9:12))))/nu_a
+          !damping(i,j,1)   = min(damping(i,j,1),  1.-exp(-(yplus*0.04)**3.))
         end do
       end do
       do i=1,i1
@@ -764,7 +765,7 @@ contains
     endif
     !write(6,*) 'Max shear for x= ',maxval(shear(:,:,:,1:4)),' y= ',maxval(shear(:,:,:,5:8)),' z= ',maxval(shear(:,:,:,9:12))
     !write(6,*) 'Min damping = ',minval(damping)
-    if(myid==0) write(6,*) 'Finished apply ruralboundary'
+    !if(myid==0) write(6,*) 'Finished apply ruralboundary'
     return
   end subroutine applyruralboundary
 
@@ -775,7 +776,7 @@ contains
 
     implicit none
 
-    integer, intent(in)    :: i,j,k 
+    integer, intent(in)    :: i,j,k
     real,    intent(in)    :: putin(2-ih:i1+ih,2-jh:j1+jh,k1)
     real,    intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
 
@@ -795,7 +796,7 @@ contains
 
     implicit none
 
-    integer, intent(in)    :: i,j,k 
+    integer, intent(in)    :: i,j,k
     real,    intent(in)    :: putin(2-ih:i1+ih,2-jh:j1+jh,k1)
     real,    intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
 
@@ -816,7 +817,7 @@ contains
 
     implicit none
 
-    integer, intent(in)    :: i,j,k 
+    integer, intent(in)    :: i,j,k
     real,    intent(in)    :: putin(2-ih:i1+ih,2-jh:j1+jh,k1)
     real,    intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
 
