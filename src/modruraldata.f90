@@ -14,7 +14,10 @@ module modruraldata
 
   !< Field for the wall shear stress
   real, allocatable    :: damping(:,:,:)
+  !< Field for the immersed boundary height
   integer, allocatable :: bc_height(:,:)     !< Height of immersed boundary at grid pos x,y
+  !< Pressurefield for the correction term
+  real, allocatable    :: pres0(:,:,:)
 
 contains
   subroutine applydamping(ekm,i,j,k)
@@ -24,11 +27,7 @@ contains
     integer, intent(in) :: i,j,k
 
     if ((.not. (lruralboundary)).or.(.not.(lwallfunc))) return
-    !if (i>17) write(6,*) 'i = ', i
-    !if (j>17) write(6,*) 'j = ', j
-    !if (k>20) write(6,*) 'k = ', k
     ekm=ekm*damping(i-1,j-1,k)
-    !write(6,*) 'wall damping applied'
     return
   end subroutine applydamping
 end module modruraldata

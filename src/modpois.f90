@@ -332,9 +332,10 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-    use modfields, only : up, vp, wp
-    use modglobal, only : i1,j1,kmax,dx,dy,dzh,ih,jh
-    use modmpi,    only : excjs
+    use modfields,    only : up, vp, wp
+    use modglobal,    only : i1,j1,kmax,dx,dy,dzh,ih,jh
+    use modmpi,       only : excjs
+    use modruraldata, only : pres0
     implicit none
     integer i,j,k
 
@@ -363,6 +364,16 @@ contains
     end do
     end do
     end do
+
+    do k=1,kmax
+    do j=2,j1
+    do i=2,i1
+      pres0(i,j,k)=pres0(i,j,k)+p(i,j,k)   ! Pressure correction term 
+    end do
+    end do
+    end do
+
+    call excjs( pres0, 2,i1,2,j1,1,kmax,ih,jh)
 
     return
   end subroutine tderive
