@@ -143,11 +143,12 @@ contains
         end do
         write(6,*) 'Succesfully read inputfile in ruralboundary'
       else           !< Simple block in the middle of the domain
-      write(6,*) 'Generating standard boundary in ruralboundary'
+        write(6,*) 'Generating standard boundary in ruralboundary'
+        bc_height(NINT(itot*0.5):(NINT(itot*0.5)+1),NINT(jtot*0.5):(NINT(jtot*0.5)+1))=NINT(kmax*0.5)
         do i=1,itot
           do j=1,jtot
             do k=1,kmax
-              if (i==NINT(itot*0.5).AND.j==NINT(jtot*0.5).AND.k.LE.NINT(kmax*0.5)) then
+              if (k.LE.bc_height(i,j)) then
                 limmersed_boundary(i+1,j+1,k)=.true.
               endif
             end do
@@ -157,9 +158,12 @@ contains
       endif
     endif
     limmersed_boundary(1,:,:)=limmersed_boundary(itot+1,:,:)
-	limmersed_boundary(:,1,:)=limmersed_boundary(:,jtot+1,:)
+    limmersed_boundary(:,1,:)=limmersed_boundary(:,jtot+1,:)
+    bc_height(itot+1,:)=bc_height(1,:)
+    bc_height(:,jtot+1)=bc_height(:,1)
+    call MPI_BCAST(bc_height,(itot+1)*(jtot+1),MPI_INTEGER ,0,comm3d,mpierr)
     call MPI_BCAST(limmersed_boundary,itot*jtot*kmax,MPI_LOGICAL ,0,comm3d,mpierr)
-	
+
     call constructboundarytypes
 
     !if (lwallfunc) call mindistance
@@ -225,9 +229,9 @@ contains
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k+1))) then
-              lshear_z(i,j,k)=limmersed_boundary(ipos,jpos,k+1)
-              lshear_z(i,j,k+1)=limmersed_boundary(ipos,jpos,k)
-              lnorm_z(i,j,k+1)=.true.
+              !lshear_z(i,j,k)=limmersed_boundary(ipos,jpos,k+1)
+              !lshear_z(i,j,k+1)=limmersed_boundary(ipos,jpos,k)
+              !lnorm_z(i,j,k+1)=.true.
             endif
           end do
         end do
@@ -276,17 +280,17 @@ contains
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k-1))) then
-              lnorm_z(i,j,k)=.true.
+              !lnorm_z(i,j,k)=.true.
             endif
           end do
         end do
       end do
-    
-	
+
+
       write(6,*) 'before exjs: , myid=',myid
       write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-	  write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-	  write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+      write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+      write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
 
       call boolexcjs( lnorm_x  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lnorm_y  , 2,imax,2,jmax,1,kmax,ih,jh)
@@ -305,14 +309,14 @@ contains
 
     write(6,*) 'after exjs:, myid=',myid
     write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-	write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-	write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
-	
-	if(myid == 0) then
-	  do k=1,kmax
-	    write(6,*) 'lnormx plane, k= ',kmax-k+1,lnorm_x(:,8,kmax-k+1)
-	  end do
-	endif
+    write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+    write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+
+    if(myid == 0) then
+      do k=1,kmax
+        write(6,*) 'lnormx plane, k= ',kmax-k+1,lnorm_x(:,8,kmax-k+1)
+      end do
+    endif
     !write(6,*) 'lnorm_y(6,:,2)=',lnorm_y(6,:,2)
     !write(6,*) 'lnorm_x(:,5,2)=',lnorm_x(:,5,2)
     !write(6,*) 'lnorm_y(:,5,2)=',lnorm_y(:,5,2)
@@ -356,7 +360,7 @@ contains
 !          end do
 !        end do
 !      end do
-!    end do  
+!    end do
 !
 !    return
 !  end subroutine mindistance
@@ -365,9 +369,9 @@ contains
     use modmpi, only : myid
     implicit none
 
-	deallocate(pres0)
-	deallocate(bc_height)
-	
+    deallocate(pres0)
+    deallocate(bc_height)
+
     if (.not. (lruralboundary)) return
     if(myid==0) write(6,*) 'Starting with exitruralboundary'
     if(lnoslip) then
@@ -561,8 +565,8 @@ contains
                       dzf(k)  * ( ekm(i,j,k-1) + ekm(i-1,j,k-1) ) ) / &
                     ( 4.   * dzh(k) )
 
-              call wallaw(u0(i,j,k-1),0.5*dzh(k-1),nu_a,shear(i,j,k-1,9))
-              call wallaw(u0(i,j,k)  ,0.5*dzh(k)  ,nu_a,shear(i,j,k,10))
+              call wallaw(u0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,9))
+              call wallaw(u0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,10))
 
               up(i,j,k-1) = up(i,j,k-1) - 0.5 * emom * rhobh(k)/rhobf(k-1) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,9)/dzf(k-1)
               up(i,j,k)   = up(i,j,k)   + 0.5 * emom * rhobh(k)/rhobf(k) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,10) /dzf(k)
@@ -571,8 +575,8 @@ contains
                       dzf(k)  * ( ekm(i+1,j,k-1) + ekm(i,j,k-1) ) ) / &
                     ( 4.   * dzh(k) )
 
-              call wallaw(u0(i+1,j,k-1),0.5*dzh(k-1),nu_a,shear(i+1,j,k-1,9))
-              call wallaw(u0(i+1,j,k)  ,0.5*dzh(k)  ,nu_a,shear(i+1,j,k,10))
+              call wallaw(u0(i+1,j,k-1),0.5*dzf(k-1),nu_a,shear(i+1,j,k-1,9))
+              call wallaw(u0(i+1,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i+1,j,k,10))
 
               up(i+1,j,k-1) = up(i+1,j,k-1) - 0.5 * epom * rhobh(k)/rhobf(k-1) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k-1,9)/dzf(k-1)
               up(i+1,j,k)   = up(i+1,j,k)   + 0.5 * epom * rhobh(k)/rhobf(k) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k,10) /dzf(k)
@@ -580,8 +584,8 @@ contains
               eomm = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i,j-1,k)  )  + &
                 dzf(k) * ( ekm(i,j,k-1) + ekm(i,j-1,k-1) ) ) / ( 4.  * dzh(k) )
 
-              call wallaw(v0(i,j,k-1),0.5*dzh(k-1),nu_a,shear(i,j,k-1,11))
-              call wallaw(v0(i,j,k)  ,0.5*dzh(k)  ,nu_a,shear(i,j,k,12))
+              call wallaw(v0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,11))
+              call wallaw(v0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,12))
 
               vp(i,j,k-1) = vp(i,j,k-1) - 0.5 * eomm * rhobh(k)/rhobf(k-1) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,11)/dzf(k-1)
               vp(i,j,k)   = vp(i,j,k)   + 0.5 * eomm * rhobh(k)/rhobf(k) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,12)  /dzf(k)
@@ -589,8 +593,8 @@ contains
               eopm = ( dzf(k-1) * ( ekm(i,j+1,k)  + ekm(i,j,k)  )  + &
                 dzf(k) * ( ekm(i,j+1,k-1) + ekm(i,j,k-1) ) ) / ( 4.  * dzh(k) )
 
-              call wallaw(v0(i,j+1,k-1),0.5*dzh(k-1),nu_a,shear(i,j+1,k-1,11))
-              call wallaw(v0(i,j+1,k)  ,0.5*dzh(k)  ,nu_a,shear(i,j+1,k,12))
+              call wallaw(v0(i,j+1,k-1),0.5*dzf(k-1),nu_a,shear(i,j+1,k-1,11))
+              call wallaw(v0(i,j+1,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j+1,k,12))
 
               vp(i,j+1,k-1) = vp(i,j+1,k-1) - 0.5 * eopm * rhobh(k)/rhobf(k-1) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k-1,11)/dzf(k-1)
               vp(i,j+1,k)   = vp(i,j+1,k)   + 0.5 * eopm * rhobh(k)/rhobf(k) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k,12)  /dzf(k)
@@ -619,9 +623,9 @@ contains
                 damping(i,j-1,k) = min(damping(i,j-1,k),1.-exp(-(yplus*0.04)**3.))
               endif
               if(lnorm_z(i,j,k)) then
-                yplus = 0.5*dzh(k)*sqrt(sum(abs(shear(i,j,k,9:12))))/nu_a
+                yplus = 0.5*dzf(k)*sqrt(sum(abs(shear(i,j,k,9:12))))/nu_a
                 damping(i,j,k)   = min(damping(i,j,k),  1.-exp(-(yplus*0.04)**3.))
-                yplus = 0.5*dzh(k)*sqrt(sum(abs(shear(i,j,k-1,9:12))))/nu_a
+                yplus = 0.5*dzf(k)*sqrt(sum(abs(shear(i,j,k-1,9:12))))/nu_a
                 damping(i,j,k-1) = min(damping(i,j,k-1),1.-exp(-(yplus*0.04)**3.))
               endif
               !write(6,*) 'yplus = ',yplus,', dx = ',dx, ', sum(abs(shear))=',sum(abs(shear(i,j,k,1:12)))
@@ -636,13 +640,13 @@ contains
       do i=1,i1
         do j=1,j1
 
-          call wallaw(u0(i,j,1),0.5*dzh(1),nu_a,shear(i,j,1,10))
-          u0g(i,j)  = u0(i,j,1)  - shear(i,j,1,10)*dzh(1)/nu_a
-          umg(i,j)  = um(i,j,1)  - shear(i,j,1,10)*dzh(1)/nu_a
+          call wallaw(u0(i,j,1),0.5*dzf(1),nu_a,shear(i,j,1,10))
+          u0g(i,j)  = u0(i,j,1)  - shear(i,j,1,10)*dzf(1)/nu_a
+          umg(i,j)  = um(i,j,1)  - shear(i,j,1,10)*dzf(1)/nu_a
 
-          call wallaw(v0(i,j,1),0.5*dzh(1),nu_a,shear(i,j,1,12))
-          v0g(i,j)  = v0(i,j,1)  - shear(i,j,1,12)*dzh(1)/nu_a
-          vmg(i,j)  = -vm(i,j,1) - shear(i,j,1,12)*dzh(1)/nu_a
+          call wallaw(v0(i,j,1),0.5*dzf(1),nu_a,shear(i,j,1,12))
+          v0g(i,j)  = v0(i,j,1)  - shear(i,j,1,12)*dzf(1)/nu_a
+          vmg(i,j)  = -vm(i,j,1) - shear(i,j,1,12)*dzf(1)/nu_a
 
           ekmg(i,j) = -ekm(i,j,1) + 2.*nu_a
 
