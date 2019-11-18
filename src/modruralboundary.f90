@@ -32,10 +32,13 @@ module modruralboundary
   !< Field for the ekm at the ghost positions (k=0)
   real, allocatable    :: ekmg(:,:)
 
+  real, allocatable    :: tempsvp(:,:,:,:)
+  real, allocatable    :: tempthlp(:,:,:)
+
 contains
   subroutine initruralboundary
-    use modglobal,  only : itot, jtot, ih, i1, jh, j1, imax, jmax, kmax, cexpnr, ifnamopt, ifinput, fname_options
-    use modmpi,     only : myid, mpi_logical, comm3d, mpierr, mpi_logical
+    use modglobal,  only : itot, jtot, ih, i1, jh, j1, k1, imax, jmax, kmax, cexpnr, ifnamopt, ifinput, fname_options, nsv
+    use modmpi,     only : myid, mpi_logical, comm3d, mpierr, MPI_INTEGER
     implicit none
 
     integer       :: i, j, k, ierr
@@ -102,6 +105,8 @@ contains
       allocate(v0g(2-ih:i1+ih,2-jh:j1+jh))
       allocate(vmg(2-ih:i1+ih,2-jh:j1+jh))
       allocate(ekmg(2-ih:i1+ih,2-jh:j1+jh))
+      allocate(tempsvp(2-ih:i1+ih,2-jh:j1+jh,k1,nsv))
+	  allocate(tempthlp(2-ih:i1+ih,2-jh:j1+jh,k1))
     endif
 
     write(6,*) 'succesfully allocated fields in ruralboundary'
@@ -128,15 +133,18 @@ contains
             do while (readstring(1:1)=='#')  ! Skip the lines that are commented (like headers)
               read (ifinput,'(a200)') readstring
             end do
-            read(readstring,*) (bc_height(i,j),j=1,jtot)
+            read(readstring,*) (bc_height(i+1,j+1),j=1,jtot)
           end do
         close(ifinput)
+
+        bc_height(1,:)=bc_height(itot+1,:)
+        bc_height(:,1)=bc_height(:,jtot+1)
 
         do i=1,itot
           do j=1,jtot
             do k=1,kmax
               if (k.LE.bc_height(i,j)) then
-                limmersed_boundary(i+1,j+1,k)=.true.
+                limmersed_boundary(i,j,k)=.true.
               endif
             end do
           end do
@@ -145,11 +153,15 @@ contains
       else           !< Simple block in the middle of the domain
         write(6,*) 'Generating standard boundary in ruralboundary'
         bc_height(NINT(itot*0.5):(NINT(itot*0.5)+1),NINT(jtot*0.5):(NINT(jtot*0.5)+1))=NINT(kmax*0.5)
-        do i=1,itot
+        
+		bc_height(1,:)=bc_height(itot+1,:)
+        bc_height(:,1)=bc_height(:,jtot+1)
+		
+		do i=1,itot
           do j=1,jtot
             do k=1,kmax
               if (k.LE.bc_height(i,j)) then
-                limmersed_boundary(i+1,j+1,k)=.true.
+                limmersed_boundary(i,j,k)=.true.
               endif
             end do
           end do
@@ -157,28 +169,34 @@ contains
         write(6,*) 'Succesfully generated immersed boundary in ruralboundary'
       endif
     endif
-    limmersed_boundary(1,:,:)=limmersed_boundary(itot+1,:,:)
-    limmersed_boundary(:,1,:)=limmersed_boundary(:,jtot+1,:)
-    bc_height(itot+1,:)=bc_height(1,:)
-    bc_height(:,jtot+1)=bc_height(:,1)
+    limmersed_boundary(itot+1,:,:)=limmersed_boundary(1,:,:)
+    limmersed_boundary(:,jtot+1,:)=limmersed_boundary(:,1,:)
     call MPI_BCAST(bc_height,(itot+1)*(jtot+1),MPI_INTEGER ,0,comm3d,mpierr)
     call MPI_BCAST(limmersed_boundary,itot*jtot*kmax,MPI_LOGICAL ,0,comm3d,mpierr)
 
     call constructboundarytypes
+
+
+    if (myid==0) then
+    write(6,*) 'bc_height='
+      do j=1,jtot
+        write(6,*) 'j=',j,',bc_height=',bc_height(:,j)
+      end do
+    endif
 
     !if (lwallfunc) call mindistance
     return
   end subroutine initruralboundary
 
   subroutine constructboundarytypes   !< Calculate the positions of the different boundary layers in multiple directions
-    
+
     use modglobal,  only : imax, i1, ih, jmax, j1, jh, kmax, k1
     use modmpi,     only : myid, myidx, myidy, boolexcjs
     implicit none
     integer i,j,k,ipos,jpos
 
 
-    write(6,*) 'Starting constructboundarytypes in ruralboundary, myid =',myid
+    if(myid==0) write(6,*) 'Starting constructboundarytypes in ruralboundary, myid =',myid
 
     !< Fill the layer types with .false.
     if(lnoslip) then
@@ -205,7 +223,7 @@ contains
           end do
         end do
       end do
-      write(6,*) 'Succesfully found shear and normal layers in x-direction'
+      if(myid==0) write(6,*) 'Succesfully found shear and normal layers in x-direction'
 
       !< Find Shear layers perpendicular to the y-direction and normal layers in y-direction
       do k=1,kmax
@@ -229,9 +247,9 @@ contains
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k+1))) then
-              !lshear_z(i,j,k)=limmersed_boundary(ipos,jpos,k+1)
-              !lshear_z(i,j,k+1)=limmersed_boundary(ipos,jpos,k)
-              !lnorm_z(i,j,k+1)=.true.
+              lshear_z(i,j,k)=limmersed_boundary(ipos,jpos,k+1)
+              lshear_z(i,j,k+1)=limmersed_boundary(ipos,jpos,k)
+              lnorm_z(i,j,k+1)=.true.
             endif
           end do
         end do
@@ -242,8 +260,8 @@ contains
       call boolexcjs( lshear_x  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lshear_y  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lshear_z  , 2,imax,2,jmax,1,kmax,ih,jh)
-      
-    write(6,*) 'Succesfully found shear and normal layers in all directions'
+
+      if(myid==0) write(6,*) 'Succesfully found shear and normal layers in all directions'
     elseif(lwallfunc) then
       !< Find normal layers in x-direction
       do k=1,kmax
@@ -257,7 +275,7 @@ contains
           end do
         end do
       end do
-      write(6,*) 'Succesfully found normal layers in x-direction'
+      if(myid==0) write(6,*) 'Succesfully found normal layers in x-direction'
       !write(6,*) 'jmax = ',jmax
 
       !< Find normal layers in y-direction
@@ -280,17 +298,17 @@ contains
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k-1))) then
-              !lnorm_z(i,j,k)=.true.
+              lnorm_z(i,j,k)=.true.
             endif
           end do
         end do
       end do
 
 
-      write(6,*) 'before exjs: , myid=',myid
-      write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-      write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-      write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+      if(myid==0) write(6,*) 'before exjs: , myid=',myid
+      if(myid==0) write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
+      if(myid==0) write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+      if(myid==0) write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
 
       call boolexcjs( lnorm_x  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lnorm_y  , 2,imax,2,jmax,1,kmax,ih,jh)
@@ -303,14 +321,14 @@ contains
       !lnorm_z(itot+1,:,:)=lnorm_z(1,:,:)
       !lnorm_z(:,jtot+1,:)=lnorm_z(:,1,:)
 
-      write(6,*) 'Succesfully found normal layers in all directions'
+      if(myid==0) write(6,*) 'Succesfully found normal layers in all directions'
     endif
-    write(6,*) 'finished constructboundarytypes'
+    if(myid==0) write(6,*) 'finished constructboundarytypes'
 
-    write(6,*) 'after exjs:, myid=',myid
-    write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-    write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-    write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+    if(myid==0) write(6,*) 'after exjs:, myid=',myid
+    if(myid==0) write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
+    if(myid==0) write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+    if(myid==0) write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
 
     if(myid == 0) then
       do k=1,kmax
@@ -321,6 +339,13 @@ contains
     !write(6,*) 'lnorm_x(:,5,2)=',lnorm_x(:,5,2)
     !write(6,*) 'lnorm_y(:,5,2)=',lnorm_y(:,5,2)
     !write(6,*) 'lnorm_z(9,14,:)=',lnorm_z(9,14,:)
+
+    if(myid==0) then
+      write(6,*) 'bc_height(9,9)=',bc_height(9,9)
+      write(6,*) 'lnorm_z(9,9,bc_height+1)=',lnorm_z(9,9,bc_height(9,9)+1)
+    endif
+
+
   end subroutine constructboundarytypes
 
 !  subroutine mindistance !< Determine the distance between the cellcenter and nearest wall for each cell (i,j,k)
@@ -390,6 +415,8 @@ contains
       deallocate(v0g)
       deallocate(vmg)
       deallocate(ekmg)
+      deallocate(tempsvp)
+	  deallocate(tempthlp)
     endif
     !write(6,*) 'deallocating lnorm_x'
     deallocate(lnorm_x)
@@ -405,9 +432,10 @@ contains
   subroutine applyruralboundary   !< apply rural boundary conditions using the immersed boundary method
     use modfields,      only : um, vm, wm, u0, v0, w0, up, vp, wp
     use modglobal,      only : rk3step, itot, imax, jmax, jtot, kmax, i1, j1, k1, ih, jh, dt, rdt, timee, dx, dy, dzh, dzf, ekmin, nsv
-    use modfields,      only : rhobf, rhobh, thl0, thlp, sv0, svp, e12p
+    use modfields,      only : rhobf, rhobh, thl0, thlp, sv0, svp, e12p, thlm
     use modsubgriddata, only : ekm
     use modmicrodata,   only : nu_a
+	use modsurfdata,    only : thls
     use modmpi,         only : myid, excjs,myidx,myidy
 
     implicit none
@@ -417,7 +445,7 @@ contains
     real     :: yplus
 
     integer  :: maxlocx(3)
-    
+
     !if (.not. (myid==0)) return
     if (.not. (lruralboundary)) return
 
@@ -432,11 +460,16 @@ contains
 
     damping(:,:,:)=1.
 
-    if(myid==0) write(6,*) 'ruralbc voor: svp(6,8,10,1)=',svp(6,8,10,1)
+    tempsvp(:,:,:,:)=0.
+	tempthlp(:,:,:)=0.
+	
+    !if(myid==0) write(6,*) 'voor ruralbc thetalp(6,9,10)=',thlp(6,9,10)
+    !if(myid==0) write(6,*) 'voor ruralbc thetalp(6,9,11)=',thlp(6,9,11)
 
-    do i=1,i1  !1+myid*imax,myid*imax+1+imax
-      do j=1,j1              !1+myid*jmax,myid*jmax+1+jmax
-      !if(myid==1) write(6,*) 'myid=1: j=',j
+    !if(myid==0) write(6,*) 'svp voor loop: svp(6,9,10,1)=',svp(6,9,10,1)
+    !if(myid==0) write(6,*) 'j1=',j1
+    do i=2,i1  !1+myid*imax,myid*imax+1+imax
+      do j=2,j1              !1+myid*jmax,myid*jmax+1+jmax
         do k=2,kmax
           if(lnoslip) then
             write(6,*) 'lnoslip is used'
@@ -454,26 +487,15 @@ contains
               vp(i,j,k)=-vm(i,j,k)*rk3coefi
             endif
           elseif(lwallfunc) then         !< wallfunctions
-            !write(6,*) 'start wallfunctions'
-            !if(j==14) write(6,*) 'j==14 is reached'
-            !if(j==14 .and. myid ==0) write(6,*) 'myid=0,j=14'
-            !if(j==3 .and. myid ==1) write(6,*) 'myid=1,j=3'
-            !if(j==3 .and. myid ==0) write(6,*) 'myid=0,j=3'
-			!if(i==1 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==1,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==2 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==2,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==3 .and. myidx==1 .and. j==4 .and. k==5) write(6,*) 'i==3,myidx==1,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==16 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==16,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==15 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==15,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-			!if(i==17 .and. myidx==0 .and. j==4 .and. k==5) write(6,*) 'i==17,myidx==0,lnorms are:',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
             if (lnorm_x(i,j,k)) then     !< Wall in x-direction
-			  !if(myidx==0 .and. j==4 .and. k==5) write(6,*) 'myidx=0 lnorm_x=T,i=',i
-			  !if(myidx==1 .and. j==4 .and. k==5) write(6,*) 'myidx=1 lnorm_x=T,i=',i
+              !if(myid==0 .and. i==6 .and. j==9 .and. k==5) write(6,*) '6 9 5 xwall'
+              !if(myid==0 .and. i==17 .and. j==9 .and. k==9) write(6,*) '17 9 9 xwall'
+              !if(myid==0 .and. i==10 .and. j==9 .and. k==10) write(6,*) '10 9 10 xwall'
+
+
               emmo = 0.25  * ( &
                 ekm(i,j,k)+ekm(i,j-1,k)+ekm(i-1,j-1,k)+ekm(i-1,j,k)  )
 
-              !write(6,*) 'norm_x at (i,j,k) = (',i,j,k,') and myid =',myid
-
-            !if(mindist(i,j,k)-0.5*dx<1e-6) write(6,*) 'mindist equal to dx/2'
               call wallaw(v0(i-1,j,k),0.5*dx,nu_a,shear(i-1,j,k,1))
               call wallaw(v0(i,j,k),  0.5*dx,nu_a,shear(i,j,k,2))
 
@@ -509,14 +531,21 @@ contains
               wp(i-1,j,k+1) = wp(i-1,j,k+1) - 0.5 * emop * ((w0(i,j,k+1)-w0(i-1,j,k+1))/dx)/dx - 0.5 * shear(i-1,j,k+1,3)/dx/dx
               wp(i,j,k+1)   = wp(i,j,k+1)   + 0.5 * emop * ((w0(i,j,k+1)-w0(i-1,j,k+1))/dx)/dx - 0.5 * shear(i,j,k+1,4)  /dx/dx
 
-              call xwallscalar(i,j,k,thl0,thlp)
+              call xwallscalar(i,j,k,thl0,tempthlp)
+
+              !if(myid==0 .and. i==6 .and. j==9 .and. k==8) write(6,*) 'tempsvp voor xwallscalar:',tempsvp(17,9,9,1)
               do nc=1,nsv
-                call xwallscalar(i,j,k,sv0(:,:,:,nc),svp(:,:,:,nc))
+                call xwallscalar(i,j,k,sv0(:,:,:,nc),tempsvp(:,:,:,nc))
               end do
+              !if(myid==0 .and. i==6 .and. j==9 .and. k==8) write(6,*) 'tempsvp na xwallscalar:',tempsvp(17,9,9,1)
               call xwalle12(i,j,k)
 
             endif
             if (lnorm_y(i,j,k)) then     !< Wall in y-direction
+              !if(myid==0 .and. i==18 .and. j==9 .and. k==9) write(6,*) '18 9 9 ywall'
+              !if(myid==0 .and. i==17 .and. j==9 .and. k==9) write(6,*) '17 9 9 ywall'
+              !if(myid==0 .and. i==18 .and. j==10 .and. k==9) write(6,*) '18 10 9 ywall'
+              !if(myid==0 .and. i==17 .and. j==10 .and. k==9) write(6,*) '17 10 9 ywall'
               emmo = 0.25  * ( &
                 ekm(i,j,k)+ekm(i,j-1,k)+ekm(i-1,j-1,k)+ekm(i-1,j,k)  )
 
@@ -553,58 +582,65 @@ contains
               wp(i,j-1,k+1) = wp(i,j-1,k+1) - 0.5 * eomp * ((w0(i,j,k+1)-w0(i,j-1,k+1))/dy)/dy - 0.5 * shear(i,j-1,k+1,7)/dy
               wp(i,j,k+1)   = wp(i,j,k+1)   + 0.5 * eomp * ((w0(i,j,k+1)-w0(i,j-1,k+1))/dy)/dy - 0.5 * shear(i,j,k+1,8)  /dy
 
-              call ywallscalar(i,j,k,thl0,thlp)
+              call ywallscalar(i,j,k,thl0,tempthlp)
               do nc=1,nsv
-                call ywallscalar(i,j,k,sv0(:,:,:,nc),svp(:,:,:,nc))
+                call ywallscalar(i,j,k,sv0(:,:,:,nc),tempsvp(:,:,:,nc))
               end do
               call ywalle12(i,j,k)
 
             endif
             if (lnorm_z(i,j,k)) then     !< Wall in z-direction
-              emom = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i-1,j,k)  )  + &
-                      dzf(k)  * ( ekm(i,j,k-1) + ekm(i-1,j,k-1) ) ) / &
-                    ( 4.   * dzh(k) )
+              !if(myid==0 .and. i==18 .and. j==9 .and. k==9) write(6,*) '18 9 9 zwall'
+              !if(myid==0 .and. i==17 .and. j==9 .and. k==9) write(6,*) '17 9 9 zwall'
+              !if(myid==0 .and. i==18 .and. j==9 .and. k==10) write(6,*) '18 9 10 zwall'
+              !if(myid==0 .and. i==17 .and. j==9 .and. k==10) write(6,*) '17 9 10 zwall'
+              !if(myid==0 .and. i==9 .and. j==9 .and. k==10) write(6,*) '9 9 10 zwall'
+              !if(myid==0 .and. i==9 .and. j==9 .and. k==11) write(6,*) '9 9 11 zwall'
 
-              call wallaw(u0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,9))
-              call wallaw(u0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,10))
+              !emom = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i-1,j,k)  )  + &
+              !        dzf(k)  * ( ekm(i,j,k-1) + ekm(i-1,j,k-1) ) ) / &
+              !      ( 4.   * dzh(k) )
 
-              up(i,j,k-1) = up(i,j,k-1) - 0.5 * emom * rhobh(k)/rhobf(k-1) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,9)/dzf(k-1)
-              up(i,j,k)   = up(i,j,k)   + 0.5 * emom * rhobh(k)/rhobf(k) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,10) /dzf(k)
+              !call wallaw(u0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,9))
+              !call wallaw(u0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,10))
 
-              epom = ( dzf(k-1) * ( ekm(i+1,j,k)  + ekm(i,j,k)  )  + &
-                      dzf(k)  * ( ekm(i+1,j,k-1) + ekm(i,j,k-1) ) ) / &
-                    ( 4.   * dzh(k) )
+              !up(i,j,k-1) = up(i,j,k-1) - 0.5 * emom * rhobh(k)/rhobf(k-1) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,9)/dzf(k-1)
+              !up(i,j,k)   = up(i,j,k)   + 0.5 * emom * rhobh(k)/rhobf(k) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,10) /dzf(k)
 
-              call wallaw(u0(i+1,j,k-1),0.5*dzf(k-1),nu_a,shear(i+1,j,k-1,9))
-              call wallaw(u0(i+1,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i+1,j,k,10))
+              !epom = ( dzf(k-1) * ( ekm(i+1,j,k)  + ekm(i,j,k)  )  + &
+              !        dzf(k)  * ( ekm(i+1,j,k-1) + ekm(i,j,k-1) ) ) / &
+              !      ( 4.   * dzh(k) )
 
-              up(i+1,j,k-1) = up(i+1,j,k-1) - 0.5 * epom * rhobh(k)/rhobf(k-1) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k-1,9)/dzf(k-1)
-              up(i+1,j,k)   = up(i+1,j,k)   + 0.5 * epom * rhobh(k)/rhobf(k) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k,10) /dzf(k)
+              !call wallaw(u0(i+1,j,k-1),0.5*dzf(k-1),nu_a,shear(i+1,j,k-1,9))
+              !call wallaw(u0(i+1,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i+1,j,k,10))
 
-              eomm = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i,j-1,k)  )  + &
-                dzf(k) * ( ekm(i,j,k-1) + ekm(i,j-1,k-1) ) ) / ( 4.  * dzh(k) )
+              !up(i+1,j,k-1) = up(i+1,j,k-1) - 0.5 * epom * rhobh(k)/rhobf(k-1) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k-1,9)/dzf(k-1)
+              !up(i+1,j,k)   = up(i+1,j,k)   + 0.5 * epom * rhobh(k)/rhobf(k) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k,10) /dzf(k)
 
-              call wallaw(v0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,11))
-              call wallaw(v0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,12))
+              !eomm = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i,j-1,k)  )  + &
+              !  dzf(k) * ( ekm(i,j,k-1) + ekm(i,j-1,k-1) ) ) / ( 4.  * dzh(k) )
 
-              vp(i,j,k-1) = vp(i,j,k-1) - 0.5 * eomm * rhobh(k)/rhobf(k-1) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,11)/dzf(k-1)
-              vp(i,j,k)   = vp(i,j,k)   + 0.5 * eomm * rhobh(k)/rhobf(k) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,12)  /dzf(k)
+              !call wallaw(v0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,11))
+              !call wallaw(v0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,12))
 
-              eopm = ( dzf(k-1) * ( ekm(i,j+1,k)  + ekm(i,j,k)  )  + &
-                dzf(k) * ( ekm(i,j+1,k-1) + ekm(i,j,k-1) ) ) / ( 4.  * dzh(k) )
+              !vp(i,j,k-1) = vp(i,j,k-1) - 0.5 * eomm * rhobh(k)/rhobf(k-1) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,11)/dzf(k-1)
+              !vp(i,j,k)   = vp(i,j,k)   + 0.5 * eomm * rhobh(k)/rhobf(k) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,12)  /dzf(k)
 
-              call wallaw(v0(i,j+1,k-1),0.5*dzf(k-1),nu_a,shear(i,j+1,k-1,11))
-              call wallaw(v0(i,j+1,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j+1,k,12))
+              !eopm = ( dzf(k-1) * ( ekm(i,j+1,k)  + ekm(i,j,k)  )  + &
+              !  dzf(k) * ( ekm(i,j+1,k-1) + ekm(i,j,k-1) ) ) / ( 4.  * dzh(k) )
 
-              vp(i,j+1,k-1) = vp(i,j+1,k-1) - 0.5 * eopm * rhobh(k)/rhobf(k-1) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k-1,11)/dzf(k-1)
-              vp(i,j+1,k)   = vp(i,j+1,k)   + 0.5 * eopm * rhobh(k)/rhobf(k) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k,12)  /dzf(k)
+              !call wallaw(v0(i,j+1,k-1),0.5*dzf(k-1),nu_a,shear(i,j+1,k-1,11))
+              !call wallaw(v0(i,j+1,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j+1,k,12))
+
+              !vp(i,j+1,k-1) = vp(i,j+1,k-1) - 0.5 * eopm * rhobh(k)/rhobf(k-1) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k-1,11)/dzf(k-1)
+              !vp(i,j+1,k)   = vp(i,j+1,k)   + 0.5 * eopm * rhobh(k)/rhobf(k) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k,12)  /dzf(k)
 
 
-              call zwallscalar(i,j,k,thl0,thlp)
-              do nc=1,nsv
-                call zwallscalar(i,j,k,sv0(:,:,:,nc),svp(:,:,:,nc))
-              end do
-              call zwalle12(i,j,k)
+              !call zwallscalar(i,j,k,thl0,tempthlp)
+              !do nc=1,nsv
+              !  call zwallscalar(i,j,k,sv0(:,:,:,nc),tempsvp(:,:,:,nc))
+              !end do
+              !call zwalle12(i,j,k)
 
             endif
             !TODO: Maybe remove mindist and put in 0.5*dx,0.5*dy,0.5*dz depending on direction
@@ -623,10 +659,10 @@ contains
                 damping(i,j-1,k) = min(damping(i,j-1,k),1.-exp(-(yplus*0.04)**3.))
               endif
               if(lnorm_z(i,j,k)) then
-                yplus = 0.5*dzf(k)*sqrt(sum(abs(shear(i,j,k,9:12))))/nu_a
-                damping(i,j,k)   = min(damping(i,j,k),  1.-exp(-(yplus*0.04)**3.))
-                yplus = 0.5*dzf(k)*sqrt(sum(abs(shear(i,j,k-1,9:12))))/nu_a
-                damping(i,j,k-1) = min(damping(i,j,k-1),1.-exp(-(yplus*0.04)**3.))
+                !yplus = 0.5*dzf(k)*sqrt(sum(abs(shear(i,j,k,9:12))))/nu_a
+                !damping(i,j,k)   = min(damping(i,j,k),  1.-exp(-(yplus*0.04)**3.))
+                !yplus = 0.5*dzf(k)*sqrt(sum(abs(shear(i,j,k-1,9:12))))/nu_a
+                !damping(i,j,k-1) = min(damping(i,j,k-1),1.-exp(-(yplus*0.04)**3.))
               endif
               !write(6,*) 'yplus = ',yplus,', dx = ',dx, ', sum(abs(shear))=',sum(abs(shear(i,j,k,1:12)))
               !write(6,*) 'damping =',damping(i,j,k)
@@ -654,7 +690,7 @@ contains
       end do
       do i=2,i1
         do j=2,j1
-          
+
           if (lnorm_x(i,j,1)) then     !< Wall in x-direction
             emmo = 0.25  * ( &
                 ekm(i,j,1)+ekm(i,j-1,1)+ekm(i-1,j-1,1)+ekm(i-1,j,1)  )
@@ -677,9 +713,9 @@ contains
             vp(i,j+1,1)   = vp(i,j+1,1)   + 0.5 * emmo*((v0(i,j+1,1)-v0(i-1,j+1,1))/dx) / dx - 0.5 * shear(i,j+1,1,2)  /dx
 
 
-            call xwallscalar(i,j,1,thl0,thlp)
+            call xwallscalar(i,j,1,thl0,tempthlp)
             do nc=1,nsv
-              call xwallscalar(i,j,1,sv0(:,:,:,nc),svp(:,:,:,nc))
+              call xwallscalar(i,j,1,sv0(:,:,:,nc),tempsvp(:,:,:,nc))
             end do
             call xwalle12(i,j,1)
           endif
@@ -704,9 +740,9 @@ contains
             up(i+1,j,1)   = up(i+1,j,1)   + 0.5 * emmo * ((u0(i+1,j,1)-u0(i+1,j-1,1))/dy)/dy - 0.5 * shear(i+1,j,1,6)  /dy
 
 
-            call ywallscalar(i,j,1,thl0,thlp)
+            call ywallscalar(i,j,1,thl0,tempthlp)
             do nc=1,nsv
-              call ywallscalar(i,j,1,sv0(:,:,:,nc),svp(:,:,:,nc))
+              call ywallscalar(i,j,1,sv0(:,:,:,nc),tempsvp(:,:,:,nc))
             end do
             call ywalle12(i,j,1)
 
@@ -745,19 +781,24 @@ contains
             end if
             if (lnorm_z(i,j,k)) then
               !write(6,*) 'lnorm_z found, wm = ',wm(i,j,k)
-              wp(i,j,k)=-wm(i,j,k)*rk3coefi
+              !wp(i,j,k)=-wm(i,j,k)*rk3coefi
             end if
-			ipos=i+myidx*imax
-			jpos=j+myidy*jmax
-			if (limmersed_boundary(ipos,jpos,k)) then
-			  up(i,j,k)=-um(i,j,k)*rk3coefi
-			  vp(i,j,k)=-vm(i,j,k)*rk3coefi
-			  wp(i,j,k)=-wm(i,j,k)*rk3coefi
+            ipos=i+myidx*imax
+            jpos=j+myidy*jmax
+            if (limmersed_boundary(ipos,jpos,k)) then
+              up(i,j,k)=-um(i,j,k)*rk3coefi
+              vp(i,j,k)=-vm(i,j,k)*rk3coefi
+              wp(i,j,k)=-wm(i,j,k)*rk3coefi
+			  thlp(i,j,k)=(thls-thlm(i,j,k))*rk3coefi
+            else
+			  thlp(i,j,k)=thlp(i,j,k)+tempthlp(i,j,k)
 			endif
           end do
         end do
       end do
     endif
+	!if(myid==0) write(6,*) 'um,up inside wall at 33 before',um(18,33,5),up(18,33,5)
+	!if(myid==0) write(6,*) 'limmersed_boundary at 33 before',limmersed_boundary(18,33,5)
     !write(6,*) 'Finishing applyruralboundary, max up = ',maxval(up),', vp = ',maxval(vp),', wp = ',maxval(wp)
     !write(6,*) 'Reached the excjs part'
     call excjs( up  , 2,i1,2,j1,1,k1,ih,jh)
@@ -766,11 +807,19 @@ contains
     call excjs( damping  , 2,i1,2,j1,1,kmax,ih,jh)
     call excjs( e12p  , 2,i1,2,j1,1,k1,ih,jh)
     call excjs( thlp  , 2,i1,2,j1,1,k1,ih,jh)
-    do nc=1,nsv
+	!if(myid==0) write(6,*) 'um,up inside wall at 33 after',um(18,33,5),up(18,33,5)
+	do nc=1,nsv
+      !if(myid==0 .and. nc==1) write(6,*) 'Temp scalar in rbc=',tempsvp(6,9,5,1)
+      !if(myid==0 .and. nc==1) write(6,*) 'Temp scalar in rbc=',tempsvp(18,9,9,1)
+      svp(:,:,:,nc)=svp(:,:,:,nc)+tempsvp(:,:,:,nc)
       call excjs( svp(:,:,:,nc)  , 2,i1,2,j1,1,k1,ih,jh)
     enddo
 
-    if(myid==0) write(6,*) 'ruralbc na: svp(6,8,10,1)=',svp(6,8,10,1)
+    !if(myid==0) write(6,*) 'svp na loop: svp(6,9,10,1)=',svp(6,9,10,1)
+
+    !if(myid==0) write(6,*) 'na ruralbc thetalp(6,9,10)=',thlp(6,9,10)
+    !if(myid==0) write(6,*) 'na ruralbc thetalp(6,9,11)=',thlp(6,9,11)
+    !if(myid==0) write(6,*) 'ruralbc na: svp(6,8,10,1)=',svp(6,8,10,1)
 
     !write(6,*) 'Values at 2,2,10: u0=',up(2,2,10),' vp=',vp(2,2,10),'wp=',wp(2,2,10),'damping=',damping(2,2,10),'thlp=',thlp(2,2,10),'rhobh=',rhobh(10),'thl0=',thl0(2,2,10)
 
@@ -794,26 +843,28 @@ contains
 
     use modglobal,      only : ih, i1, jh, j1, k1, dx2i
     use modsubgriddata, only : ekh
-	use modfields, only : sv0
-	use modmpi, only : myid
+    use modfields, only : sv0
+    use modmpi, only : myid
 
     implicit none
 
-    integer, intent(in)    :: i,j,k 
+    integer, intent(in)    :: i,j,k
     real,    intent(in)    :: putin(2-ih:i1+ih,2-jh:j1+jh,k1)
     real,    intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
 
     ! zero flux through the boundary is applied here
-    putout(i,j,k)   = putout(i,j,k) &
+    if(.not. (putin(i,j,k)==0)) then
+      putout(i,j,k)   = putout(i,j,k) &
                       + 0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i
-    putout(i-1,j,k) = putout(i-1,j,k) &
+    elseif(.not. (putin(i-1,j,k)==0)) then
+      putout(i-1,j,k) = putout(i-1,j,k) &
                       - 0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i
-
-    if(myid==0 .and. i==6 .and. j==8 .and. k==10) then
-	  write(6,*) 'Condition met xwall:'
-	  write(6,*) '0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i=',0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i
-	  write(6,*) '- 0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i=',- 0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i
     endif
+    !if(myid==0 .and. i==10 .and. j==9 .and. k==10) then
+    !  write(6,*) 'Condition met xwall:'
+    !  write(6,*) '0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i=',0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i
+    !  write(6,*) '- 0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i=',- 0.5 * (ekh(i,j,k)+ekh(i-1,j,k))*(putin(i,j,k)-putin(i-1,j,k))*dx2i
+    !endif
 
     return
   end subroutine xwallscalar
@@ -825,15 +876,18 @@ contains
 
     implicit none
 
-    integer, intent(in)    :: i,j,k 
+    integer, intent(in)    :: i,j,k
     real,    intent(in)    :: putin(2-ih:i1+ih,2-jh:j1+jh,k1)
     real,    intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
 
     ! zero flux through the boundary is applied here
-    putout(i,j,k)   = putout(i,j,k) &
+    if(.not. (putin(i,j,k)==0)) then
+      putout(i,j,k)   = putout(i,j,k) &
                       + 0.5 * (ekh(i,j,k)+ekh(i,j-1,k)) *(putin(i,j,k)-putin(i,j-1,k))*dy2i
-    putout(i,j-1,k) = putout(i,j-1,k) &
+    elseif(.not. (putin(i,j-1,k)==0)) then
+      putout(i,j-1,k) = putout(i,j-1,k) &
                       - 0.5 * (ekh(i,j,k)+ekh(i,j-1,k)) *(putin(i,j,k)-putin(i,j-1,k))*dy2i
+    endif
 
     return
   end subroutine ywallscalar
@@ -843,34 +897,37 @@ contains
     use modglobal,      only : ih, i1, jh, j1, k1, dzf, dzh
     use modsubgriddata, only : ekh
     use modfields,      only : rhobh, rhobf, sv0
-	use modmpi, only : myid
+    use modmpi, only : myid
 
     implicit none
 
-    integer, intent(in)    :: i,j,k 
+    integer, intent(in)    :: i,j,k
     real,    intent(in)    :: putin(2-ih:i1+ih,2-jh:j1+jh,k1)
     real,    intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
 
     ! zero flux through the boundary is applied here
-    putout(i,j,k)   = putout(i,j,k) &
+    if(.not. (putin(i,j,k)==0)) then
+      putout(i,j,k)   = putout(i,j,k) &
                       + 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
                       *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)
-    putout(i,j,k-1) = putout(i,j,k-1) &
+    elseif(.not. (putin(i,j,k-1)==0)) then
+      putout(i,j,k-1) = putout(i,j,k-1) &
                       - 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
                       *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)
-
-    if(myid==0 .and. i==6 .and. j==8 .and. k==11) then
-	  write(6,*) 'Condition met zwall:'
-	  write(6,*) '+ 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
-                      *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)=',+ 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
-                      *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)
-	  write(6,*) '- 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
-                      *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)=',- 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
-                      *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)
     endif
-	
-	
-	return
+
+    !if(myid==0 .and. i==6 .and. j==8 .and. k==11) then
+      !write(6,*) 'Condition met zwall:'
+      !write(6,*) '+ 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
+      !                *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)=',+ 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
+      !                *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)
+      !write(6,*) '- 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
+      !                *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)=',- 0.5 * rhobh(k)/rhobf(k-1) * (dzf(k-1)*ekh(i,j,k) + dzf(k)*ekh(i,j,k-1)) &
+      !                *  (putin(i,j,k)-putin(i,j,k-1)) / dzh(k)**2 /dzf(k-1)
+    !endif
+
+
+    return
   end subroutine zwallscalar
 
   subroutine xwalle12(i,j,k)

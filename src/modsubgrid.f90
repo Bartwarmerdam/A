@@ -145,6 +145,7 @@ contains
     use modglobal, only : nsv, lmoist
     use modfields, only : up,vp,wp,e12p,thl0,thlp,qt0,qtp,sv0,svp
     use modsurfdata,only : thlflux,qtflux,svflux
+	use modmpi,     only : myid
     implicit none
     integer n
 
@@ -155,9 +156,11 @@ contains
     if (.not. lsmagorinsky) call diffe(e12p)
     call diffc(thl0,thlp,thlflux)
     if (lmoist) call diffc( qt0, qtp, qtflux)
+	!if(myid==0) write(6,*) 'Scalar before diffc in subgrid',svp(8,9,10,1)
     do n=1,nsv
       call diffc(sv0(:,:,:,n),svp(:,:,:,n),svflux(:,:,n))
     end do
+	!if(myid==0) write(6,*) 'Scalar after diffc in subgrid',svp(8,9,10,1)
     if (.not. lsmagorinsky) call sources
   end subroutine
 
@@ -536,7 +539,7 @@ contains
 
     use modglobal, only : i1,ih,i2,j1,jh,j2,k1,kmax,dx2i,dzf,dy2i,dzh,imax,jmax
     use modfields, only : rhobf,rhobh
-    use modmpi,    only : myidx,myidy
+    use modmpi,    only : myidx,myidy,myid
     use modruraldata, only : bc_height
     implicit none
 
@@ -579,6 +582,7 @@ contains
     do j=2,j1
       do i=2,i1
         kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+		!if(myid==0 .and.i==9 .and. j==9) write(6,*) 'kmin = ',kmin
         putout(i,j,kmin) = putout(i,j,kmin) &
                   + 0.5 * ( &
                 ( (ekh(i+1,j,kmin)+ekh(i,j,kmin))*(putin(i+1,j,kmin)-putin(i,j,kmin)) &

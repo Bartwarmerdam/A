@@ -100,7 +100,7 @@ program DALES      !Version 4.0.0alpha
 !!----------------------------------------------------------------
 !!     0.0    USE STATEMENTS FOR CORE MODULES
 !!----------------------------------------------------------------
-  use modglobal,         only : rk3step,timeleft
+  use modglobal,         only : rk3step,timeleft, rdt
   use modstartup,        only : startup, writerestartfiles,testwctime,exitmodules
   use modtimedep,        only : timedep
   use modboundary,       only : boundary, grwdamp! JvdD ,tqaver
@@ -150,8 +150,12 @@ program DALES      !Version 4.0.0alpha
   use modcanopy,       only : initcanopy, canopy, exitcanopy
   use modruralboundary,   only : initruralboundary, applyruralboundary, exitruralboundary ! MK
 
+  ! Use to create a point source for scalar 1
+  use modfields,       only : svp,svm
+  use modmpi,          only : myid
 
   implicit none
+  real rk3coef
 
 !----------------------------------------------------------------
 !     1      READ NAMELISTS,INITIALISE GRID, CONSTANTS AND FIELDS
@@ -201,7 +205,9 @@ program DALES      !Version 4.0.0alpha
 
   do while (timeleft>0 .or. rk3step < 3)
     call tstep_update                           ! Calculate new timestep
-    write(6,*) 'timeleft = ',timeleft
+    !write(6,*) 'timeleft = ',timeleft
+    !if(myid==0) write(6,*) 'Scalar start',svp(4,9,1,1)
+    !if(myid==0) write(6,*) 'svp start: svp(6,9,10,1)=',svp(6,9,10,1)
     call timedep
     call samptend(tend_start,firstterm=.true.)
 !-----------------------------------------------------
@@ -213,14 +219,19 @@ program DALES      !Version 4.0.0alpha
 !-----------------------------------------------------
 !   3.2   THE SURFACE LAYER
 !-----------------------------------------------------
+    !if(myid==0) write(6,*) 'svp voor surface: svp(4,9,1,1)=',svp(4,9,1,1)
     call surface
 
 !-----------------------------------------------------
 !   3.3   ADVECTION AND DIFFUSION
 !-----------------------------------------------------
+    !if(myid==0) write(6,*) 'svp voor advection: svp(4,9,1,1)=',svp(4,9,1,1)
     call advection
+    !if(myid==0) write(6,*) 'svp na advection: svp(4,9,1,1)=',svp(4,9,1,1)
     call samptend(tend_adv)
+    !if(myid==0) write(6,*) 'svp voor subgrid: svp(4,9,1,1)=',svp(4,9,1,1)
     call subgrid
+    !if(myid==0) write(6,*) 'svp na subgrid: svp(4,9,1,1)=',svp(4,9,1,1)
     call canopy
     call samptend(tend_subg)
 
@@ -255,8 +266,18 @@ program DALES      !Version 4.0.0alpha
     call samptend(tend_topbound)
     call poisson
     call samptend(tend_pois,lastterm=.true.)
+    !if(myid==0) write(6,*) 'Scalar before applyruralbc',svp(4,9,1,1)
     call applyruralboundary                     ! MK Apply Immersed Boundary Method for the rural boundary
-
+    !if(myid==0) write(6,*) 'Scalar after applyruralbc',svp(4,9,1,1)
+    rk3coef=rdt/(4.-dble(rk3step))
+    if(myid==0) then
+      svp(2,8,3,1)=(0.9-svm(2,8,3,1))/rk3coef
+      svp(2,8,4,1)=(0.9-svm(2,8,4,1))/rk3coef
+      svp(2,9,3,1)=(0.9-svm(2,9,3,1))/rk3coef
+      svp(2,9,4,1)=(0.9-svm(2,9,4,1))/rk3coef
+      svp(2,8,5,1)=(0.9-svm(2,8,5,1))/rk3coef
+      svp(2,9,5,1)=(0.9-svm(2,9,5,1))/rk3coef
+    endif
     call tstep_integrate                        ! Apply tendencies to all variables
     call boundary
     !call tiltedboundary
@@ -294,6 +315,8 @@ program DALES      !Version 4.0.0alpha
 
     call testwctime
     call writerestartfiles
+
+    !if(myid==0) write(6,*) 'Scalar at the end of the loop',svp(4,9,1,1)
 
   end do
 

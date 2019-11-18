@@ -33,6 +33,7 @@ subroutine advection
   use modsubgrid, only : lsmagorinsky
   use advec_hybrid, only : advecc_hybrid
   use advec_hybrid_f, only : advecc_hybrid_f
+  use modmpi, only : myid
 
   implicit none
   integer :: n
@@ -113,6 +114,7 @@ subroutine advection
 
   select case(iadv_thl)
     case(iadv_cd2)
+	  !if(myid==0) write(6,*) 'Start with Advec thlp'
       call advecc_2nd(thl0,thlp)
     case(iadv_5th)
       if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
