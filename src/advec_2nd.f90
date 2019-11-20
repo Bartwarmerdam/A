@@ -32,7 +32,7 @@
 !> Advection at cell center
 subroutine advecc_2nd(putin,putout)
 
-  use modglobal, only : i1,ih,j1,jh,k1,kmax,dxi5,dyi5,dzi5,dzf,dzh,leq
+  use modglobal, only : i1,ih,j1,jh,k1,kmax,dxi5,dyi5,dzi5,dzf,dzh,leq,eps1
   use modfields, only : u0, v0, w0, rhobf
   use modruralboundary, only : lnorm_x, lnorm_y, lnorm_z, lruralboundary
   use modruraldata,     only : bc_height
@@ -42,6 +42,7 @@ subroutine advecc_2nd(putin,putout)
 
   real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1), intent(in)  :: putin !< Input: the cell centered field
   real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1), intent(inout) :: putout !< Output: the tendency
+  real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1) :: tempputout !< Temporary tendency correction due to rural bc
 !  real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1) :: rhoputin
 
   integer :: i,j,k,ip,im,jp,jm,kp,km
@@ -54,14 +55,14 @@ subroutine advecc_2nd(putin,putout)
 !    end do
 !  end do
 
-  !if(myid==0) write(6,*) 'advecc voor: svp(4,9,1,1)=',svp(4,9,1,1)
+  !if(myid==0) write(6,*) '=======\n advecc voor: svp(5,9,1,1)=',svp(5,9,1,1)
   !if(myid==0) write(6,*) 'voor advec thetalp(6,9,10)=',thlp(6,9,10)
   !if(myid==0) write(6,*) 'voor advec thetalp(6,9,11)=',thlp(6,9,11)
   do k=1,kmax
     do j=2,j1
       do i=2,i1
-	    !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) 'u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) ))* dxi5',u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) )* dxi5
-        !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) ))* dxi5',-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5
+        !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) 'u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) ))* dxi5',u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) )* dxi5
+        !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) ))* dxi5',-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5
         putout(i,j,k)  = putout(i,j,k)- (  &
               ( &
               u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) ) &
@@ -80,7 +81,7 @@ subroutine advecc_2nd(putin,putout)
 
     do j=2,j1
       do i=2,i1
-	    !if(i==4 .and. j==9 .and. myid==0) write(6,*) '(1./rhobf(1))*(w0(i,j,2) * (rhobf(2) * putin(i,j,2) + rhobf(1) * putin(i,j,1) )) * dzi5',(1./rhobf(1))*(w0(i,j,2) * (rhobf(2) * putin(i,j,2) + rhobf(1) * putin(i,j,1) )) * dzi5
+      !if(i==5 .and. j==9 .and. myid==0) write(6,*) '(1./rhobf(1))*(w0(i,j,2) * (rhobf(2) * putin(i,j,2) * dzf(1) + rhobf(1) * putin(i,j,1) * dzf(2) ) / (2.*dzh(2))) / dzf(1)=',(1./rhobf(1))*(w0(i,j,2) * (rhobf(2) * putin(i,j,2) * dzf(1) + rhobf(1) * putin(i,j,1) * dzf(2) ) / (2.*dzh(2))) / dzf(1)
         putout(i,j,1)  = putout(i,j,1)- (1./rhobf(1))*( &
                 w0(i,j,2) * (rhobf(2) * putin(i,j,2) + rhobf(1) * putin(i,j,1) ) &
                 ) * dzi5
@@ -102,6 +103,7 @@ subroutine advecc_2nd(putin,putout)
 
     do j=2,j1
       do i=2,i1
+      !if(i==5 .and. j==9 .and. myid==0) write(6,*) '(1./rhobf(1))*(w0(i,j,2) * (rhobf(2) * putin(i,j,2) * dzf(1) + rhobf(1) * putin(i,j,1) * dzf(2) ) / (2.*dzh(2))) / dzf(1)=',(1./rhobf(1))*(w0(i,j,2) * (rhobf(2) * putin(i,j,2) * dzf(1) + rhobf(1) * putin(i,j,1) * dzf(2) ) / (2.*dzh(2))) / dzf(1)
         putout(i,j,1)  = putout(i,j,1)- (1./rhobf(1))*( &
                 w0(i,j,2) * (rhobf(2) * putin(i,j,2) * dzf(1) + rhobf(1) * putin(i,j,1) * dzf(2) ) / (2.*dzh(2)) &
                 ) / dzf(1)
@@ -120,68 +122,69 @@ subroutine advecc_2nd(putin,putout)
     end do
 
   end if
-  
-  !if(myid==0) write(6,*) 'advecc voor lruralbc: svp(4,9,1,1)=',svp(4,9,1,1)
+
+  !if(myid==0) write(6,*) 'advecc voor lruralbc: svp(5,9,1,1)=',svp(5,9,1,1)
   !if(myid==0) write(6,*) 'voor advec ruralbc thetalp(6,9,10)=',thlp(6,9,10)
   !if(myid==0) write(6,*) 'voor advec ruralbc thetalp(6,9,11)=',thlp(6,9,11)
-  
-  
+
+
   if (lruralboundary) then ! MK: Apply immersed boundary conditions at the locations of the walls
+    tempputout(:,:,:)=0.
     do i=2,i1
       do j=2,j1
         do k=1,kmax
-          !if(i==6 .and. j==9 .and. k==10 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-          !if(i==5 .and. j==9 .and. k==10 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-          !if(i==6 .and. j==9 .and. k==11 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==6 .and. j==9 .and. k==1 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==5 .and. j==9 .and. k==2 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
           !if(i==6 .and. j==9 .and. k==9 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
           if (lnorm_x(i,j,k)) then
             !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '5,9,1 xnorm'
             !if(i==7 .and. j==9 .and. k==10 .and. myid==0) write(6,*) '7,9,10 xnorm'
             !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) ))* dxi5',-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5
-            putout(i,j,k)=putout(i,j,k)+( &
+            tempputout(i,j,k)=tempputout(i,j,k)+( &
               !u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) ) &
               -u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) ) &
                 )* dxi5
-            putout(i-1,j,k)=putout(i-1,j,k)+( &
+            tempputout(i-1,j,k)=tempputout(i-1,j,k)+( &
               u0(i,j,k) * ( putin(i,j,k) + putin(i-1,j,k) ) &
               !-u0(i-1 ,j,k) * ( putin(i-2,j,k) + putin(i-1,j,k) ) &
                 )* dxi5
           endif
           if (lnorm_y(i,j,k)) then
-		    !if(i==6 .and. j==9 .and. k==10 .and. myid==0) write(6,*) '6,9,10 ynorm'
-			!if(i==6 .and. j==10 .and. k==10 .and. myid==0) write(6,*) '6,10,10 ynorm'
-            putout(i,j,k)=putout(i,j,k)+( &
+            !if(i==6 .and. j==9 .and. k==10 .and. myid==0) write(6,*) '6,9,10 ynorm'
+            !if(i==6 .and. j==10 .and. k==10 .and. myid==0) write(6,*) '6,10,10 ynorm'
+            tempputout(i,j,k)=tempputout(i,j,k)+( &
               !v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) ) &
               -v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) ) &
               )* dyi5
-            putout(i,j-1,k)=putout(i,j-1,k)+( &
+            tempputout(i,j-1,k)=tempputout(i,j-1,k)+( &
               v0(i,j,k) * ( putin(i,j,k) + putin(i,j-1,k) ) &
               !-v0(i,j-1 ,k) * ( putin(i,j-2,k) + putin(i,j-1,k) ) &
               )* dyi5
           endif
-		  !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '4,9,1 lnorm_z=',lnorm_z(i,j,k)
-		  !if(i==4 .and. j==9 .and. k==2 .and. myid==0) write(6,*) '4,9,2 lnorm_z=',lnorm_z(i,j,k)
+          !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '4,9,1 lnorm_z=',lnorm_z(i,j,k)
+          !if(i==4 .and. j==9 .and. k==2 .and. myid==0) write(6,*) '4,9,2 lnorm_z=',lnorm_z(i,j,k)
           !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '4,9 bc_height=',bc_height(i,j)
-		  !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '5,9 bc_height=',bc_height(i,j)
-		  if (lnorm_z(i,j,k).and. (.not. k==1)) then
-		    !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '4,9,1 znorm'
-		    !if(i==4 .and. j==9 .and. k==2 .and. myid==0) write(6,*) '4,9,2 znorm'
-			!if(i==6 .and. j==9 .and. k==11 .and. myid==0) write(6,*) '(1./rhobf(k-1))*(w0(i,j,k) * (rhobf(k) * putin(i,j,k) + rhobf(k-1) * putin(i,j,k-1)))*dzi5',(1./rhobf(k-1))*(w0(i,j,k) * (rhobf(k) * putin(i,j,k) + rhobf(k-1) * putin(i,j,k-1)))*dzi5
+          !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '5,9 bc_height=',bc_height(i,j)
+          if (lnorm_z(i,j,k).and. (.not. k==1)) then
+            !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '4,9,1 znorm'
+            !if(i==4 .and. j==9 .and. k==2 .and. myid==0) write(6,*) '4,9,2 znorm'
+            !if(i==6 .and. j==9 .and. k==11 .and. myid==0) write(6,*) '(1./rhobf(k-1))*(w0(i,j,k) * (rhobf(k) * putin(i,j,k) + rhobf(k-1) * putin(i,j,k-1)))*dzi5',(1./rhobf(k-1))*(w0(i,j,k) * (rhobf(k) * putin(i,j,k) + rhobf(k-1) * putin(i,j,k-1)))*dzi5
             if (leq) then ! equidistant grid
-              putout(i,j,k)  = putout(i,j,k) + (1./rhobf(k))*( &
+              tempputout(i,j,k)  = tempputout(i,j,k) + (1./rhobf(k))*( &
                 !w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)) &
                 -w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)) &
                 )*dzi5
-              putout(i,j,k-1)  = putout(i,j,k-1) + (1./rhobf(k-1))*( &
+              tempputout(i,j,k-1)  = tempputout(i,j,k-1) + (1./rhobf(k-1))*( &
                 w0(i,j,k) * (rhobf(k) * putin(i,j,k) + rhobf(k-1) * putin(i,j,k-1)) &
                 !-w0(i,j,k-1)   * (rhobf(k-2) * putin(i,j,k-2)+ rhobf(k-1) * putin(i,j,k-1)) &
                 )*dzi5
             else   ! non-equidistant grid
-              putout(i,j,k)  = putout(i,j,k) + (1./rhobf(k))*( &
+              tempputout(i,j,k)  = tempputout(i,j,k) + (1./rhobf(k))*( &
                 !w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) * dzf(k) + rhobf(k) * putin(i,j,k) * dzf(k+1) ) / dzh(k+1) &
                 -w0(i,j,k ) * (rhobf(k-1) * putin(i,j,k-1) * dzf(k) + rhobf(k) * putin(i,j,k) * dzf(k-1) ) / dzh(k) &
                 )/ (2. * dzf(k))
-              putout(i,j,k-1)  = putout(i,j,k-1) + (1./rhobf(k-1))*( &
+              tempputout(i,j,k-1)  = tempputout(i,j,k-1) + (1./rhobf(k-1))*( &
                 w0(i,j,k) * (rhobf(k) * putin(i,j,k) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-1) ) / dzh(k) &
                 !-w0(i,j,k-1 ) * (rhobf(k-2) * putin(i,j,k-2) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-2) ) / dzh(k-1) &
                 )/ (2. * dzf(k))
@@ -190,12 +193,29 @@ subroutine advecc_2nd(putin,putout)
         end do
       end do
     end do
+    !Apply correction step
+    do i=2,i1
+      do j=2,j1
+        do k=1,kmax
+		  !if(myid==0 .and. i==5 .and. j==9 .and. k==1) write(6,*) 'tempputout(5,9,1)=',tempputout(i,j,k)
+		  !if(myid==0 .and. i==5 .and. j==9 .and. k==1) write(6,*) 'putout(5,9,1)=',putout(i,j,k)
+		  !if(myid==0 .and. i==5 .and. j==9 .and. k==1) write(6,*) 'putout(5,9,1)+tempputout(i,j,k)=',putout(i,j,k)+tempputout(i,j,k)
+          if((putout(i,j,k)+tempputout(i,j,k))/tempputout(i,j,k)<eps1) then
+		    putout(i,j,k)=0.
+		  else
+		    putout(i,j,k)=putout(i,j,k)+tempputout(i,j,k)
+	      endif
+        end do
+      end do
+    end do
   endif
-  !if(myid==0) write(6,*) 'advecc na lruralbc: svp(4,9,1,1)=',svp(4,9,1,1)
+
+
+  !if(myid==0) write(6,*) 'advecc na lruralbc: svp(5,9,1,1)=',svp(5,9,1,1)
   !if(myid==0) write(6,*) 'advecc na: svp(7,8,10,1)=',svp(7,8,10,1)
   !if(myid==0) write(6,*) 'na advec ruralbc thetalp(6,9,10)=',thlp(6,9,10)
   !if(myid==0) write(6,*) 'na advec ruralbc thetalp(6,9,11)=',thlp(6,9,11)
-  
+
 
 
 end subroutine advecc_2nd

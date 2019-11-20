@@ -34,6 +34,7 @@ module modruralboundary
 
   real, allocatable    :: tempsvp(:,:,:,:)
   real, allocatable    :: tempthlp(:,:,:)
+  real, allocatable    :: tempup(:,:,:), tempvp(:,:,:), tempwp(:,:,:)
 
 contains
   subroutine initruralboundary
@@ -106,7 +107,10 @@ contains
       allocate(vmg(2-ih:i1+ih,2-jh:j1+jh))
       allocate(ekmg(2-ih:i1+ih,2-jh:j1+jh))
       allocate(tempsvp(2-ih:i1+ih,2-jh:j1+jh,k1,nsv))
-	  allocate(tempthlp(2-ih:i1+ih,2-jh:j1+jh,k1))
+      allocate(tempthlp(2-ih:i1+ih,2-jh:j1+jh,k1))
+      allocate(tempup(2-ih:i1+ih,2-jh:j1+jh,k1))
+      allocate(tempvp(2-ih:i1+ih,2-jh:j1+jh,k1))
+      allocate(tempwp(2-ih:i1+ih,2-jh:j1+jh,k1))
     endif
 
     write(6,*) 'succesfully allocated fields in ruralboundary'
@@ -153,11 +157,11 @@ contains
       else           !< Simple block in the middle of the domain
         write(6,*) 'Generating standard boundary in ruralboundary'
         bc_height(NINT(itot*0.5):(NINT(itot*0.5)+1),NINT(jtot*0.5):(NINT(jtot*0.5)+1))=NINT(kmax*0.5)
-        
-		bc_height(1,:)=bc_height(itot+1,:)
+
+        bc_height(1,:)=bc_height(itot+1,:)
         bc_height(:,1)=bc_height(:,jtot+1)
-		
-		do i=1,itot
+
+        do i=1,itot
           do j=1,jtot
             do k=1,kmax
               if (k.LE.bc_height(i,j)) then
@@ -183,6 +187,10 @@ contains
         write(6,*) 'j=',j,',bc_height=',bc_height(:,j)
       end do
     endif
+	
+	if(myid==0) write(6,*) 'limmersed_boundary(4,9,1)=',limmersed_boundary(4,9,1)
+	if(myid==0) write(6,*) 'limmersed_boundary(5,9,1)=',limmersed_boundary(5,9,1)
+	if(myid==0) write(6,*) 'limmersed_boundary(6,9,1)=',limmersed_boundary(6,9,1)
 
     !if (lwallfunc) call mindistance
     return
@@ -304,11 +312,14 @@ contains
         end do
       end do
 
+      !if(myid==0) write(6,*) 'lnorm_x(4,9,1)=',lnorm_x(4,9,1)
+	  !if(myid==0) write(6,*) 'lnorm_x(5,9,1)=',lnorm_x(5,9,1)
+	  !if(myid==0) write(6,*) 'lnorm_x(6,9,1)=',lnorm_x(6,9,1)
 
-      if(myid==0) write(6,*) 'before exjs: , myid=',myid
-      if(myid==0) write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-      if(myid==0) write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-      if(myid==0) write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+      !if(myid==0) write(6,*) 'before exjs: , myid=',myid
+      !if(myid==0) write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
+      !if(myid==0) write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+      !if(myid==0) write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
 
       call boolexcjs( lnorm_x  , 2,imax,2,jmax,1,kmax,ih,jh)
       call boolexcjs( lnorm_y  , 2,imax,2,jmax,1,kmax,ih,jh)
@@ -325,25 +336,25 @@ contains
     endif
     if(myid==0) write(6,*) 'finished constructboundarytypes'
 
-    if(myid==0) write(6,*) 'after exjs:, myid=',myid
-    if(myid==0) write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-    if(myid==0) write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-    if(myid==0) write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+    !if(myid==0) write(6,*) 'after exjs:, myid=',myid
+    !if(myid==0) write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
+    !if(myid==0) write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
+    !if(myid==0) write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
 
-    if(myid == 0) then
-      do k=1,kmax
-        write(6,*) 'lnormx plane, k= ',kmax-k+1,lnorm_x(:,8,kmax-k+1)
-      end do
-    endif
+    !if(myid == 0) then
+    !  do k=1,kmax
+    !    write(6,*) 'lnormx plane, k= ',kmax-k+1,lnorm_x(:,8,kmax-k+1)
+    !  end do
+    !endif
     !write(6,*) 'lnorm_y(6,:,2)=',lnorm_y(6,:,2)
     !write(6,*) 'lnorm_x(:,5,2)=',lnorm_x(:,5,2)
     !write(6,*) 'lnorm_y(:,5,2)=',lnorm_y(:,5,2)
     !write(6,*) 'lnorm_z(9,14,:)=',lnorm_z(9,14,:)
 
-    if(myid==0) then
-      write(6,*) 'bc_height(9,9)=',bc_height(9,9)
-      write(6,*) 'lnorm_z(9,9,bc_height+1)=',lnorm_z(9,9,bc_height(9,9)+1)
-    endif
+    !if(myid==0) then
+    !  write(6,*) 'bc_height(9,9)=',bc_height(9,9)
+    !  write(6,*) 'lnorm_z(9,9,bc_height+1)=',lnorm_z(9,9,bc_height(9,9)+1)
+    !endif
 
 
   end subroutine constructboundarytypes
@@ -416,7 +427,10 @@ contains
       deallocate(vmg)
       deallocate(ekmg)
       deallocate(tempsvp)
-	  deallocate(tempthlp)
+      deallocate(tempthlp)
+      deallocate(tempup)
+      deallocate(tempvp)
+      deallocate(tempwp)
     endif
     !write(6,*) 'deallocating lnorm_x'
     deallocate(lnorm_x)
@@ -435,7 +449,7 @@ contains
     use modfields,      only : rhobf, rhobh, thl0, thlp, sv0, svp, e12p, thlm
     use modsubgriddata, only : ekm
     use modmicrodata,   only : nu_a
-	use modsurfdata,    only : thls
+    use modsurfdata,    only : thls
     use modmpi,         only : myid, excjs,myidx,myidy
 
     implicit none
@@ -461,8 +475,11 @@ contains
     damping(:,:,:)=1.
 
     tempsvp(:,:,:,:)=0.
-	tempthlp(:,:,:)=0.
-	
+    tempthlp(:,:,:)=0.
+    tempup(:,:,:)=0.
+    tempvp(:,:,:)=0.
+    tempwp(:,:,:)=0.
+
     !if(myid==0) write(6,*) 'voor ruralbc thetalp(6,9,10)=',thlp(6,9,10)
     !if(myid==0) write(6,*) 'voor ruralbc thetalp(6,9,11)=',thlp(6,9,11)
 
@@ -499,8 +516,10 @@ contains
               call wallaw(v0(i-1,j,k),0.5*dx,nu_a,shear(i-1,j,k,1))
               call wallaw(v0(i,j,k),  0.5*dx,nu_a,shear(i,j,k,2))
 
-              vp(i-1,j,k) = vp(i-1,j,k) - 0.5 * emmo*((v0(i,j,k)-v0(i-1,j,k))/dx) / dx - 0.5 * shear(i-1,j,k,1)/dx
-              vp(i,j,k)   = vp(i,j,k)   + 0.5 * emmo*((v0(i,j,k)-v0(i-1,j,k))/dx) / dx - 0.5 * shear(i,j,k,2)  /dx
+              tempvp(i-1,j,k) = tempvp(i-1,j,k) - 0.5 * emmo*((v0(i,j,k)-v0(i-1,j,k))/dx) / dx - 0.5 * shear(i-1,j,k,1)/dx
+              tempvp(i,j,k)   = tempvp(i,j,k)   + 0.5 * emmo*((v0(i,j,k)-v0(i-1,j,k))/dx) / dx - 0.5 * shear(i,j,k,2)  /dx
+              !vp(i-1,j,k) = vp(i-1,j,k) - 0.5 * emmo*((v0(i,j,k)-v0(i-1,j,k))/dx) / dx - 0.5 * shear(i-1,j,k,1)/dx
+              !vp(i,j,k)   = vp(i,j,k)   + 0.5 * emmo*((v0(i,j,k)-v0(i-1,j,k))/dx) / dx - 0.5 * shear(i,j,k,2)  /dx
 
               empo = 0.25  * ( &
                 ekm(i,j+1,k)+ekm(i,j,k)+ekm(i-1,j,k)+ekm(i-1,j+1,k)  )
@@ -508,8 +527,10 @@ contains
               call wallaw(v0(i-1,j+1,k),0.5*dx,nu_a,shear(i-1,j+1,k,1))
               call wallaw(v0(i,j+1,k),  0.5*dx,nu_a,shear(i,j+1,k,2))
 
-              vp(i-1,j+1,k) = vp(i-1,j+1,k) - 0.5 * empo*((v0(i,j+1,k)-v0(i-1,j+1,k))/dx) / dx - 0.5 * shear(i-1,j+1,k,1)/dx
-              vp(i,j+1,k)   = vp(i,j+1,k)   + 0.5 * empo*((v0(i,j+1,k)-v0(i-1,j+1,k))/dx) / dx - 0.5 * shear(i,j+1,k,2)  /dx
+              tempvp(i-1,j+1,k) = tempvp(i-1,j+1,k) - 0.5 * empo*((v0(i,j+1,k)-v0(i-1,j+1,k))/dx) / dx - 0.5 * shear(i-1,j+1,k,1)/dx
+              tempvp(i,j+1,k)   = tempvp(i,j+1,k)   + 0.5 * empo*((v0(i,j+1,k)-v0(i-1,j+1,k))/dx) / dx - 0.5 * shear(i,j+1,k,2)  /dx
+              !vp(i-1,j+1,k) = vp(i-1,j+1,k) - 0.5 * empo*((v0(i,j+1,k)-v0(i-1,j+1,k))/dx) / dx - 0.5 * shear(i-1,j+1,k,1)/dx
+              !vp(i,j+1,k)   = vp(i,j+1,k)   + 0.5 * empo*((v0(i,j+1,k)-v0(i-1,j+1,k))/dx) / dx - 0.5 * shear(i,j+1,k,2)  /dx
 
               emom = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i-1,j,k)  )  + &
                       dzf(k)  * ( ekm(i,j,k-1) + ekm(i-1,j,k-1) ) ) / &
@@ -518,8 +539,10 @@ contains
               call wallaw(w0(i-1,j,k),0.5*dx,nu_a,shear(i-1,j,k,3))
               call wallaw(w0(i,j,k),  0.5*dx,nu_a,shear(i,j,k,4))
 
-              wp(i-1,j,k) = wp(i-1,j,k) - 0.5 * emom * ((w0(i,j,k)-w0(i-1,j,k))/dx)/dx - 0.5 * shear(i-1,j,k,3)/dx/dx
-              wp(i,j,k)   = wp(i,j,k)   + 0.5 * emom * ((w0(i,j,k)-w0(i-1,j,k))/dx)/dx - 0.5 * shear(i,j,k,4)  /dx/dx
+              tempwp(i-1,j,k) = tempwp(i-1,j,k) - 0.5 * emom * ((w0(i,j,k)-w0(i-1,j,k))/dx)/dx - 0.5 * shear(i-1,j,k,3)/dx/dx
+              tempwp(i,j,k)   = tempwp(i,j,k)   + 0.5 * emom * ((w0(i,j,k)-w0(i-1,j,k))/dx)/dx - 0.5 * shear(i,j,k,4)  /dx/dx
+              !wp(i-1,j,k) = wp(i-1,j,k) - 0.5 * emom * ((w0(i,j,k)-w0(i-1,j,k))/dx)/dx - 0.5 * shear(i-1,j,k,3)/dx/dx
+              !wp(i,j,k)   = wp(i,j,k)   + 0.5 * emom * ((w0(i,j,k)-w0(i-1,j,k))/dx)/dx - 0.5 * shear(i,j,k,4)  /dx/dx
 
               emop = ( dzf(k) * ( ekm(i,j,k+1)  + ekm(i-1,j,k+1)  )  + &
                       dzf(k+1)  * ( ekm(i,j,k) + ekm(i-1,j,k) ) ) / &
@@ -528,8 +551,10 @@ contains
               call wallaw(w0(i-1,j,k+1),0.5*dx,nu_a,shear(i-1,j,k+1,3))
               call wallaw(w0(i,j,k+1),  0.5*dx,nu_a,shear(i,j,k+1,4))
 
-              wp(i-1,j,k+1) = wp(i-1,j,k+1) - 0.5 * emop * ((w0(i,j,k+1)-w0(i-1,j,k+1))/dx)/dx - 0.5 * shear(i-1,j,k+1,3)/dx/dx
-              wp(i,j,k+1)   = wp(i,j,k+1)   + 0.5 * emop * ((w0(i,j,k+1)-w0(i-1,j,k+1))/dx)/dx - 0.5 * shear(i,j,k+1,4)  /dx/dx
+              tempwp(i-1,j,k+1) = tempwp(i-1,j,k+1) - 0.5 * emop * ((w0(i,j,k+1)-w0(i-1,j,k+1))/dx)/dx - 0.5 * shear(i-1,j,k+1,3)/dx/dx
+              tempwp(i,j,k+1)   = tempwp(i,j,k+1)   + 0.5 * emop * ((w0(i,j,k+1)-w0(i-1,j,k+1))/dx)/dx - 0.5 * shear(i,j,k+1,4)  /dx/dx
+              !wp(i-1,j,k+1) = wp(i-1,j,k+1) - 0.5 * emop * ((w0(i,j,k+1)-w0(i-1,j,k+1))/dx)/dx - 0.5 * shear(i-1,j,k+1,3)/dx/dx
+              !wp(i,j,k+1)   = wp(i,j,k+1)   + 0.5 * emop * ((w0(i,j,k+1)-w0(i-1,j,k+1))/dx)/dx - 0.5 * shear(i,j,k+1,4)  /dx/dx
 
               call xwallscalar(i,j,k,thl0,tempthlp)
 
@@ -552,8 +577,10 @@ contains
               call wallaw(u0(i,j-1,k),0.5*dy,nu_a,shear(i,j-1,k,5))
               call wallaw(u0(i,j,k)  ,0.5*dy,nu_a,shear(i,j,k,6))
 
-              up(i,j-1,k) = up(i,j-1,k) - 0.5 * emmo * ((u0(i,j,k)-u0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j-1,k,5)/dy
-              up(i,j,k)   = up(i,j,k)   + 0.5 * emmo * ((u0(i,j,k)-u0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j,k,6)  /dy
+              tempup(i,j-1,k) = tempup(i,j-1,k) - 0.5 * emmo * ((u0(i,j,k)-u0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j-1,k,5)/dy
+              tempup(i,j,k)   = tempup(i,j,k)   + 0.5 * emmo * ((u0(i,j,k)-u0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j,k,6)  /dy
+              !up(i,j-1,k) = up(i,j-1,k) - 0.5 * emmo * ((u0(i,j,k)-u0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j-1,k,5)/dy
+              !up(i,j,k)   = up(i,j,k)   + 0.5 * emmo * ((u0(i,j,k)-u0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j,k,6)  /dy
 
               epmo = 0.25  * ( &
                 ekm(i+1,j,k)+ekm(i+1,j-1,k)+ekm(i,j-1,k)+ekm(i,j,k)  )
@@ -561,8 +588,10 @@ contains
               call wallaw(u0(i+1,j-1,k),0.5*dy,nu_a,shear(i+1,j-1,k,5))
               call wallaw(u0(i+1,j,k)  ,0.5*dy,nu_a,shear(i+1,j,k,6))
 
-              up(i+1,j-1,k) = up(i+1,j-1,k) - 0.5 * epmo * ((u0(i+1,j,k)-u0(i+1,j-1,k))/dy)/dy - 0.5 * shear(i+1,j-1,k,5)/dy
-              up(i+1,j,k)   = up(i+1,j,k)   + 0.5 * epmo * ((u0(i+1,j,k)-u0(i+1,j-1,k))/dy)/dy - 0.5 * shear(i+1,j,k,6)  /dy
+              tempup(i+1,j-1,k) = tempup(i+1,j-1,k) - 0.5 * epmo * ((u0(i+1,j,k)-u0(i+1,j-1,k))/dy)/dy - 0.5 * shear(i+1,j-1,k,5)/dy
+              tempup(i+1,j,k)   = tempup(i+1,j,k)   + 0.5 * epmo * ((u0(i+1,j,k)-u0(i+1,j-1,k))/dy)/dy - 0.5 * shear(i+1,j,k,6)  /dy
+              !up(i+1,j-1,k) = up(i+1,j-1,k) - 0.5 * epmo * ((u0(i+1,j,k)-u0(i+1,j-1,k))/dy)/dy - 0.5 * shear(i+1,j-1,k,5)/dy
+              !up(i+1,j,k)   = up(i+1,j,k)   + 0.5 * epmo * ((u0(i+1,j,k)-u0(i+1,j-1,k))/dy)/dy - 0.5 * shear(i+1,j,k,6)  /dy
 
               eomm = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i,j-1,k)  )  + &
                 dzf(k) * ( ekm(i,j,k-1) + ekm(i,j-1,k-1) ) ) / ( 4.  * dzh(k) )
@@ -570,8 +599,10 @@ contains
               call wallaw(w0(i,j-1,k),0.5*dy,nu_a,shear(i,j-1,k,7))
               call wallaw(w0(i,j,k)  ,0.5*dy,nu_a,shear(i,j,k,8))
 
-              wp(i,j-1,k) = wp(i,j-1,k) - 0.5 * eomm * ((w0(i,j,k)-w0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j-1,k,7)/dy
-              wp(i,j,k)   = wp(i,j,k)   + 0.5 * eomm * ((w0(i,j,k)-w0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j,k,8)  /dy
+              tempwp(i,j-1,k) = tempwp(i,j-1,k) - 0.5 * eomm * ((w0(i,j,k)-w0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j-1,k,7)/dy
+              tempwp(i,j,k)   = tempwp(i,j,k)   + 0.5 * eomm * ((w0(i,j,k)-w0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j,k,8)  /dy
+              !wp(i,j-1,k) = wp(i,j-1,k) - 0.5 * eomm * ((w0(i,j,k)-w0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j-1,k,7)/dy
+              !wp(i,j,k)   = wp(i,j,k)   + 0.5 * eomm * ((w0(i,j,k)-w0(i,j-1,k))/dy)/dy - 0.5 * shear(i,j,k,8)  /dy
 
               eomp = ( dzf(k) * ( ekm(i,j,k+1)  + ekm(i,j-1,k+1)  )  + &
                 dzf(k+1) * ( ekm(i,j,k) + ekm(i,j-1,k) ) ) / ( 4.  * dzh(k+1) )
@@ -579,8 +610,10 @@ contains
               call wallaw(w0(i,j-1,k+1),0.5*dy,nu_a,shear(i,j-1,k+1,7))
               call wallaw(w0(i,j,k+1)  ,0.5*dy,nu_a,shear(i,j,k+1,8))
 
-              wp(i,j-1,k+1) = wp(i,j-1,k+1) - 0.5 * eomp * ((w0(i,j,k+1)-w0(i,j-1,k+1))/dy)/dy - 0.5 * shear(i,j-1,k+1,7)/dy
-              wp(i,j,k+1)   = wp(i,j,k+1)   + 0.5 * eomp * ((w0(i,j,k+1)-w0(i,j-1,k+1))/dy)/dy - 0.5 * shear(i,j,k+1,8)  /dy
+              tempwp(i,j-1,k+1) = tempwp(i,j-1,k+1) - 0.5 * eomp * ((w0(i,j,k+1)-w0(i,j-1,k+1))/dy)/dy - 0.5 * shear(i,j-1,k+1,7)/dy
+              tempwp(i,j,k+1)   = tempwp(i,j,k+1)   + 0.5 * eomp * ((w0(i,j,k+1)-w0(i,j-1,k+1))/dy)/dy - 0.5 * shear(i,j,k+1,8)  /dy
+              !wp(i,j-1,k+1) = wp(i,j-1,k+1) - 0.5 * eomp * ((w0(i,j,k+1)-w0(i,j-1,k+1))/dy)/dy - 0.5 * shear(i,j-1,k+1,7)/dy
+              !wp(i,j,k+1)   = wp(i,j,k+1)   + 0.5 * eomp * ((w0(i,j,k+1)-w0(i,j-1,k+1))/dy)/dy - 0.5 * shear(i,j,k+1,8)  /dy
 
               call ywallscalar(i,j,k,thl0,tempthlp)
               do nc=1,nsv
@@ -604,8 +637,10 @@ contains
               !call wallaw(u0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,9))
               !call wallaw(u0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,10))
 
-              !up(i,j,k-1) = up(i,j,k-1) - 0.5 * emom * rhobh(k)/rhobf(k-1) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,9)/dzf(k-1)
-              !up(i,j,k)   = up(i,j,k)   + 0.5 * emom * rhobh(k)/rhobf(k) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,10) /dzf(k)
+              !tempup(i,j,k-1) = tempup(i,j,k-1) - 0.5 * emom * rhobh(k)/rhobf(k-1) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,9)/dzf(k-1)
+              !tempup(i,j,k)   = tempup(i,j,k)   + 0.5 * emom * rhobh(k)/rhobf(k) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,10) /dzf(k)
+              !!up(i,j,k-1) = up(i,j,k-1) - 0.5 * emom * rhobh(k)/rhobf(k-1) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,9)/dzf(k-1)
+              !!up(i,j,k)   = up(i,j,k)   + 0.5 * emom * rhobh(k)/rhobf(k) *((u0(i,j,k)-u0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,10) /dzf(k)
 
               !epom = ( dzf(k-1) * ( ekm(i+1,j,k)  + ekm(i,j,k)  )  + &
               !        dzf(k)  * ( ekm(i+1,j,k-1) + ekm(i,j,k-1) ) ) / &
@@ -614,8 +649,10 @@ contains
               !call wallaw(u0(i+1,j,k-1),0.5*dzf(k-1),nu_a,shear(i+1,j,k-1,9))
               !call wallaw(u0(i+1,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i+1,j,k,10))
 
-              !up(i+1,j,k-1) = up(i+1,j,k-1) - 0.5 * epom * rhobh(k)/rhobf(k-1) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k-1,9)/dzf(k-1)
-              !up(i+1,j,k)   = up(i+1,j,k)   + 0.5 * epom * rhobh(k)/rhobf(k) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k,10) /dzf(k)
+              !tempup(i+1,j,k-1) = tempup(i+1,j,k-1) - 0.5 * epom * rhobh(k)/rhobf(k-1) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k-1,9)/dzf(k-1)
+              !tempup(i+1,j,k)   = tempup(i+1,j,k)   + 0.5 * epom * rhobh(k)/rhobf(k) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k,10) /dzf(k)
+              !!up(i+1,j,k-1) = up(i+1,j,k-1) - 0.5 * epom * rhobh(k)/rhobf(k-1) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k-1,9)/dzf(k-1)
+              !!up(i+1,j,k)   = up(i+1,j,k)   + 0.5 * epom * rhobh(k)/rhobf(k) *((u0(i+1,j,k)-u0(i+1,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i+1,j,k,10) /dzf(k)
 
               !eomm = ( dzf(k-1) * ( ekm(i,j,k)  + ekm(i,j-1,k)  )  + &
               !  dzf(k) * ( ekm(i,j,k-1) + ekm(i,j-1,k-1) ) ) / ( 4.  * dzh(k) )
@@ -623,8 +660,10 @@ contains
               !call wallaw(v0(i,j,k-1),0.5*dzf(k-1),nu_a,shear(i,j,k-1,11))
               !call wallaw(v0(i,j,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j,k,12))
 
-              !vp(i,j,k-1) = vp(i,j,k-1) - 0.5 * eomm * rhobh(k)/rhobf(k-1) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,11)/dzf(k-1)
-              !vp(i,j,k)   = vp(i,j,k)   + 0.5 * eomm * rhobh(k)/rhobf(k) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,12)  /dzf(k)
+              !tempvp(i,j,k-1) = tempvp(i,j,k-1) - 0.5 * eomm * rhobh(k)/rhobf(k-1) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,11)/dzf(k-1)
+              !tempvp(i,j,k)   = tempvp(i,j,k)   + 0.5 * eomm * rhobh(k)/rhobf(k) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,12)  /dzf(k)
+              !!vp(i,j,k-1) = vp(i,j,k-1) - 0.5 * eomm * rhobh(k)/rhobf(k-1) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k-1,11)/dzf(k-1)
+              !!vp(i,j,k)   = vp(i,j,k)   + 0.5 * eomm * rhobh(k)/rhobf(k) *((v0(i,j,k)-v0(i,j,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j,k,12)  /dzf(k)
 
               !eopm = ( dzf(k-1) * ( ekm(i,j+1,k)  + ekm(i,j,k)  )  + &
               !  dzf(k) * ( ekm(i,j+1,k-1) + ekm(i,j,k-1) ) ) / ( 4.  * dzh(k) )
@@ -632,8 +671,10 @@ contains
               !call wallaw(v0(i,j+1,k-1),0.5*dzf(k-1),nu_a,shear(i,j+1,k-1,11))
               !call wallaw(v0(i,j+1,k)  ,0.5*dzf(k)  ,nu_a,shear(i,j+1,k,12))
 
-              !vp(i,j+1,k-1) = vp(i,j+1,k-1) - 0.5 * eopm * rhobh(k)/rhobf(k-1) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k-1,11)/dzf(k-1)
-              !vp(i,j+1,k)   = vp(i,j+1,k)   + 0.5 * eopm * rhobh(k)/rhobf(k) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k,12)  /dzf(k)
+              !tempvp(i,j+1,k-1) = tempvp(i,j+1,k-1) - 0.5 * eopm * rhobh(k)/rhobf(k-1) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k-1,11)/dzf(k-1)
+              !tempvp(i,j+1,k)   = tempvp(i,j+1,k)   + 0.5 * eopm * rhobh(k)/rhobf(k) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k,12)  /dzf(k)
+              !!vp(i,j+1,k-1) = vp(i,j+1,k-1) - 0.5 * eopm * rhobh(k)/rhobf(k-1) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k-1,11)/dzf(k-1)
+              !!vp(i,j+1,k)   = vp(i,j+1,k)   + 0.5 * eopm * rhobh(k)/rhobf(k) *((v0(i,j+1,k)-v0(i,j+1,k-1))/dzh(k))/dzf(k-1) - 0.5 * shear(i,j+1,k,12)  /dzf(k)
 
 
               !call zwallscalar(i,j,k,thl0,tempthlp)
@@ -699,8 +740,10 @@ contains
             call wallaw(v0(i-1,j,1),0.5*dx,nu_a,shear(i-1,j,1,1))
             call wallaw(v0(i,j,1),  0.5*dx,nu_a,shear(i,j,1,2))
 
-            vp(i-1,j,1) = vp(i-1,j,1) - 0.5 * emmo*((v0(i,j,1)-v0(i-1,j,1))/dx) / dx - 0.5 * shear(i-1,j,1,1)/dx
-            vp(i,j,1)   = vp(i,j,1)   + 0.5 * emmo*((v0(i,j,1)-v0(i-1,j,1))/dx) / dx - 0.5 * shear(i,j,1,2)  /dx
+            tempvp(i-1,j,1) = tempvp(i-1,j,1) - 0.5 * emmo*((v0(i,j,1)-v0(i-1,j,1))/dx) / dx - 0.5 * shear(i-1,j,1,1)/dx
+            tempvp(i,j,1)   = tempvp(i,j,1)   + 0.5 * emmo*((v0(i,j,1)-v0(i-1,j,1))/dx) / dx - 0.5 * shear(i,j,1,2)  /dx
+            !vp(i-1,j,1) = vp(i-1,j,1) - 0.5 * emmo*((v0(i,j,1)-v0(i-1,j,1))/dx) / dx - 0.5 * shear(i-1,j,1,1)/dx
+            !vp(i,j,1)   = vp(i,j,1)   + 0.5 * emmo*((v0(i,j,1)-v0(i-1,j,1))/dx) / dx - 0.5 * shear(i,j,1,2)  /dx
 
             empo = 0.25  * ( &
                 ekm(i,j+1,1)+ekm(i,j,1)+ekm(i-1,j,1)+ekm(i-1,j+1,1)  )
@@ -709,8 +752,10 @@ contains
             call wallaw(v0(i-1,j+1,1),0.5*dx,nu_a,shear(i-1,j+1,1,1))
             call wallaw(v0(i,j+1,1),  0.5*dx,nu_a,shear(i,j+1,1,2))
 
-            vp(i-1,j+1,1) = vp(i-1,j+1,1) - 0.5 * emmo*((v0(i,j+1,1)-v0(i-1,j+1,1))/dx) / dx - 0.5 * shear(i-1,j+1,1,1)/dx
-            vp(i,j+1,1)   = vp(i,j+1,1)   + 0.5 * emmo*((v0(i,j+1,1)-v0(i-1,j+1,1))/dx) / dx - 0.5 * shear(i,j+1,1,2)  /dx
+            tempvp(i-1,j+1,1) = tempvp(i-1,j+1,1) - 0.5 * emmo*((v0(i,j+1,1)-v0(i-1,j+1,1))/dx) / dx - 0.5 * shear(i-1,j+1,1,1)/dx
+            tempvp(i,j+1,1)   = tempvp(i,j+1,1)   + 0.5 * emmo*((v0(i,j+1,1)-v0(i-1,j+1,1))/dx) / dx - 0.5 * shear(i,j+1,1,2)  /dx
+            !vp(i-1,j+1,1) = vp(i-1,j+1,1) - 0.5 * emmo*((v0(i,j+1,1)-v0(i-1,j+1,1))/dx) / dx - 0.5 * shear(i-1,j+1,1,1)/dx
+            !vp(i,j+1,1)   = vp(i,j+1,1)   + 0.5 * emmo*((v0(i,j+1,1)-v0(i-1,j+1,1))/dx) / dx - 0.5 * shear(i,j+1,1,2)  /dx
 
 
             call xwallscalar(i,j,1,thl0,tempthlp)
@@ -727,8 +772,10 @@ contains
             call wallaw(u0(i,j-1,1),0.5*dy,nu_a,shear(i,j-1,1,5))
             call wallaw(u0(i,j,1)  ,0.5*dy,nu_a,shear(i,j,1,6))
 
-            up(i,j-1,1) = up(i,j-1,1) - 0.5 * emmo * ((u0(i,j,1)-u0(i,j-1,1))/dy)/dy - 0.5 * shear(i,j-1,1,5)/dy
-            up(i,j,1)   = up(i,j,1)   + 0.5 * emmo * ((u0(i,j,1)-u0(i,j-1,1))/dy)/dy - 0.5 * shear(i,j,1,6)  /dy
+            tempup(i,j-1,1) = tempup(i,j-1,1) - 0.5 * emmo * ((u0(i,j,1)-u0(i,j-1,1))/dy)/dy - 0.5 * shear(i,j-1,1,5)/dy
+            tempup(i,j,1)   = tempup(i,j,1)   + 0.5 * emmo * ((u0(i,j,1)-u0(i,j-1,1))/dy)/dy - 0.5 * shear(i,j,1,6)  /dy
+            !up(i,j-1,1) = up(i,j-1,1) - 0.5 * emmo * ((u0(i,j,1)-u0(i,j-1,1))/dy)/dy - 0.5 * shear(i,j-1,1,5)/dy
+            !up(i,j,1)   = up(i,j,1)   + 0.5 * emmo * ((u0(i,j,1)-u0(i,j-1,1))/dy)/dy - 0.5 * shear(i,j,1,6)  /dy
 
             epmo = 0.25  * ( &
               ekm(i+1,j,1)+ekm(i+1,j-1,1)+ekm(i,j-1,1)+ekm(i,j,1)  )
@@ -736,8 +783,10 @@ contains
             call wallaw(u0(i+1,j-1,1),0.5*dy,nu_a,shear(i+1,j-1,1,5))
             call wallaw(u0(i+1,j,1)  ,0.5*dy,nu_a,shear(i+1,j,1,6))
 
-            up(i+1,j-1,1) = up(i+1,j-1,1) - 0.5 * emmo * ((u0(i+1,j,1)-u0(i+1,j-1,1))/dy)/dy - 0.5 * shear(i+1,j-1,1,5)/dy
-            up(i+1,j,1)   = up(i+1,j,1)   + 0.5 * emmo * ((u0(i+1,j,1)-u0(i+1,j-1,1))/dy)/dy - 0.5 * shear(i+1,j,1,6)  /dy
+            tempup(i+1,j-1,1) = tempup(i+1,j-1,1) - 0.5 * emmo * ((u0(i+1,j,1)-u0(i+1,j-1,1))/dy)/dy - 0.5 * shear(i+1,j-1,1,5)/dy
+            tempup(i+1,j,1)   = tempup(i+1,j,1)   + 0.5 * emmo * ((u0(i+1,j,1)-u0(i+1,j-1,1))/dy)/dy - 0.5 * shear(i+1,j,1,6)  /dy
+            !up(i+1,j-1,1) = up(i+1,j-1,1) - 0.5 * emmo * ((u0(i+1,j,1)-u0(i+1,j-1,1))/dy)/dy - 0.5 * shear(i+1,j-1,1,5)/dy
+            !up(i+1,j,1)   = up(i+1,j,1)   + 0.5 * emmo * ((u0(i+1,j,1)-u0(i+1,j-1,1))/dy)/dy - 0.5 * shear(i+1,j,1,6)  /dy
 
 
             call ywallscalar(i,j,1,thl0,tempthlp)
@@ -789,16 +838,19 @@ contains
               up(i,j,k)=-um(i,j,k)*rk3coefi
               vp(i,j,k)=-vm(i,j,k)*rk3coefi
               wp(i,j,k)=-wm(i,j,k)*rk3coefi
-			  thlp(i,j,k)=(thls-thlm(i,j,k))*rk3coefi
+              thlp(i,j,k)=(thls-thlm(i,j,k))*rk3coefi
             else
-			  thlp(i,j,k)=thlp(i,j,k)+tempthlp(i,j,k)
-			endif
+              up(i,j,k)=up(i,j,k)+tempup(i,j,k)
+              vp(i,j,k)=vp(i,j,k)+tempvp(i,j,k)
+              wp(i,j,k)=wp(i,j,k)+tempwp(i,j,k)
+              thlp(i,j,k)=thlp(i,j,k)+tempthlp(i,j,k)
+            endif
           end do
         end do
       end do
     endif
-	!if(myid==0) write(6,*) 'um,up inside wall at 33 before',um(18,33,5),up(18,33,5)
-	!if(myid==0) write(6,*) 'limmersed_boundary at 33 before',limmersed_boundary(18,33,5)
+    !if(myid==0) write(6,*) 'um,up inside wall at 33 before',um(18,33,5),up(18,33,5)
+    !if(myid==0) write(6,*) 'limmersed_boundary at 33 before',limmersed_boundary(18,33,5)
     !write(6,*) 'Finishing applyruralboundary, max up = ',maxval(up),', vp = ',maxval(vp),', wp = ',maxval(wp)
     !write(6,*) 'Reached the excjs part'
     call excjs( up  , 2,i1,2,j1,1,k1,ih,jh)
@@ -807,8 +859,8 @@ contains
     call excjs( damping  , 2,i1,2,j1,1,kmax,ih,jh)
     call excjs( e12p  , 2,i1,2,j1,1,k1,ih,jh)
     call excjs( thlp  , 2,i1,2,j1,1,k1,ih,jh)
-	!if(myid==0) write(6,*) 'um,up inside wall at 33 after',um(18,33,5),up(18,33,5)
-	do nc=1,nsv
+    !if(myid==0) write(6,*) 'um,up inside wall at 33 after',um(18,33,5),up(18,33,5)
+    do nc=1,nsv
       !if(myid==0 .and. nc==1) write(6,*) 'Temp scalar in rbc=',tempsvp(6,9,5,1)
       !if(myid==0 .and. nc==1) write(6,*) 'Temp scalar in rbc=',tempsvp(18,9,9,1)
       svp(:,:,:,nc)=svp(:,:,:,nc)+tempsvp(:,:,:,nc)
