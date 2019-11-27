@@ -38,11 +38,14 @@ module modruralboundary
 
 contains
   subroutine initruralboundary
-    use modglobal,  only : itot, jtot, ih, i1, jh, j1, k1, imax, jmax, kmax, cexpnr, ifnamopt, ifinput, fname_options, nsv
-    use modmpi,     only : myid, mpi_logical, comm3d, mpierr, MPI_INTEGER
+    use modglobal,  only : itot, jtot, ih, i1, jh, j1, k1, imax, jmax, kmax, cexpnr, ifnamopt, ifinput, fname_options, nsv, e12min
+    use modmpi,     only : myid, mpi_logical, comm3d, mpierr, MPI_INTEGER, myidx, myidy
+	use modsurfdata, only : thls
+	use modfields,   only : thl0,thlm,qt0,qtm,u0,um,v0,vm,w0,wm,e120,e12m
+	use modsubgrid,  only : ekh,ekm
     implicit none
 
-    integer       :: i, j, k, ierr
+    integer       :: i, j, k, ierr, kmin
     character(600) :: readstring
 
     namelist/NAMRURALBOUNDARY/ lruralboundary, ldefrural, &
@@ -192,6 +195,7 @@ contains
 	if(myid==0) write(6,*) 'limmersed_boundary(5,9,1)=',limmersed_boundary(5,9,1)
 	if(myid==0) write(6,*) 'limmersed_boundary(6,9,1)=',limmersed_boundary(6,9,1)
 
+	
     !if (lwallfunc) call mindistance
     return
   end subroutine initruralboundary
@@ -883,7 +887,7 @@ contains
       write(6,*) 'ERROR: vel>16, maxloc = ',maxloc(sqrt(u0**2.+v0**2.+w0**2.)), 'u0 and um and up are here:',u0(maxlocx(1),maxlocx(2),maxlocx(3)),um(maxlocx(1),maxlocx(2),maxlocx(3)),up(maxlocx(1),maxlocx(2),maxlocx(3))
       write(6,*) 'v0 and vm and vp are here:',v0(maxlocx(1),maxlocx(2),maxlocx(3)),vm(maxlocx(1),maxlocx(2),maxlocx(3)),vp(maxlocx(1),maxlocx(2),maxlocx(3))
       write(6,*) 'w0 and wm and wp are here:',w0(maxlocx(1),maxlocx(2),maxlocx(3)),wm(maxlocx(1),maxlocx(2),maxlocx(3)),wp(maxlocx(1),maxlocx(2),maxlocx(3))
-      write(6,*) 'shear(maxloc) = ',shear(maxlocx(1),maxlocx(2),maxlocx(3),:)
+      write(6,*) 'timee = ',timee
     endif
     !write(6,*) 'Max shear for x= ',maxval(shear(:,:,:,1:4)),' y= ',maxval(shear(:,:,:,5:8)),' z= ',maxval(shear(:,:,:,9:12))
     !write(6,*) 'Min damping = ',minval(damping)
@@ -993,7 +997,8 @@ contains
     integer, intent(in)    :: i,j,k
 
     if(.not.(k==1)) then
-      e12p(i,j,k)   = e12p(i,j,k)   - (ekm(i,j,k)+ekm(i-1,j,k))*(e120(i,j,k)-e120(i-1,j,k))*dx2i &
+	  if(.not. (e12p(i,j,k)==0)) then
+        e12p(i,j,k)   = e12p(i,j,k)   - (ekm(i,j,k)+ekm(i-1,j,k))*(e120(i,j,k)-e120(i-1,j,k))*dx2i &
                                   + ekm(i,j,k)/(2*e120(i,j,k))* (&  !source terms
                                      -((w0(i,j,k+1)-w0(i-1,j,k+1))  / dx             + &
                                        (u0(i,j,k+1)-u0(i,j,k))      / dzh(k+1) )**2  + &
@@ -1015,8 +1020,8 @@ contains
                                      +((u0(i,j,k)-u0(i,j-1,k))      / dy             + &
                                        (2.*v0(i,j,k))               / dx       )**2    &
                                     )
-
-      e12p(i-1,j,k) = e12p(i-1,j,k) + (ekm(i,j,k)+ekm(i-1,j,k))*(e120(i,j,k)-e120(i-1,j,k))*dx2i &
+      elseif(.not. (e12p(i-1,j,k)==0)) then
+        e12p(i-1,j,k) = e12p(i-1,j,k) + (ekm(i,j,k)+ekm(i-1,j,k))*(e120(i,j,k)-e120(i-1,j,k))*dx2i &
                                   + ekm(i-1,j,k)/(2*e120(i-1,j,k))* (&  !source terms
                                        -((w0(i,j,k)-w0(i-1,j,k))    / dx             + &
                                          (u0(i,j,k)-u0(i,j,k-1))    / dzh(k)   )**2  + &
@@ -1038,8 +1043,10 @@ contains
                                        +((u0(i,j+1,k)-u0(i,j,k))    / dy             + &
                                          (-2.*v0(i-1,j+1,k))        / dx       )**2    &
                                     )
+	endif
     else !Special treatment for the lowest full level: k=1
-      e12p(i,j,k)   = e12p(i,j,k)   - (ekm(i,j,k)+ekm(i-1,j,k))*(e120(i,j,k)-e120(i-1,j,k))*dx2i &
+	  if(.not. (e12p(i,j,k)==0)) then
+        e12p(i,j,k)   = e12p(i,j,k)   - (ekm(i,j,k)+ekm(i-1,j,k))*(e120(i,j,k)-e120(i-1,j,k))*dx2i &
                                   + ekm(i,j,k)/(2*e120(i,j,k))* (&  !source terms
                                      -((u0(i,j+1,k)-u0(i,j,k))      / dy             + &
                                        (v0(i,j+1,k)-v0(i-1,j+1,k))  / dx       )**2  + &
@@ -1051,8 +1058,8 @@ contains
                                      +((u0(i,j,k)-u0(i,j-1,k))      / dy             + &
                                        (2.*v0(i,j,k))               / dx       )**2    &
                                     )
-
-      e12p(i-1,j,k) = e12p(i-1,j,k) + (ekm(i,j,k)+ekm(i-1,j,k))*(e120(i,j,k)-e120(i-1,j,k))*dx2i &
+      elseif(.not. (e12p(i-1,j,k)==0)) then
+        e12p(i-1,j,k) = e12p(i-1,j,k) + (ekm(i,j,k)+ekm(i-1,j,k))*(e120(i,j,k)-e120(i-1,j,k))*dx2i &
                                   + ekm(i-1,j,k)/(2*e120(i-1,j,k))* (&  !source terms
 
                                        -((u0(i,j,k)-u0(i,j-1,k))    / dy             + &
@@ -1065,6 +1072,7 @@ contains
                                        +((u0(i,j+1,k)-u0(i,j,k))    / dy             + &
                                          (-2.*v0(i-1,j+1,k))        / dx       )**2    &
                                     )
+	  endif
     endif
   end subroutine xwalle12
 
@@ -1080,7 +1088,8 @@ contains
     integer, intent(in)    :: i,j,k
 
     if(.not.(k==1)) then
-      e12p(i,j,k)   = e12p(i,j,k)   - (ekm(i,j,k)+ekm(i,j-1,k))*(e120(i,j,k)-e120(i,j-1,k))*dy2i &
+	  if(.not. (e12p(i,j,k)==0)) then
+        e12p(i,j,k)   = e12p(i,j,k)   - (ekm(i,j,k)+ekm(i,j-1,k))*(e120(i,j,k)-e120(i,j-1,k))*dy2i &
                                   + ekm(i,j,k)/(2.*e120(i,j,k))* (&  !source terms
                                        -((u0(i,j,k)-u0(i,j-1,k))    / dy             + &
                                          (v0(i,j,k)-v0(i-1,j,k))    / dx       )**2  + &
@@ -1102,8 +1111,8 @@ contains
                                        +((v0(i,j,k)-v0(i,j,k-1))    / dzh(k)         + &
                                          (2.*w0(i,j,k))             / dy       )**2    &
                                     )
-
-      e12p(i,j-1,k) = e12p(i,j-1,k) + (ekm(i,j,k)+ekm(i,j-1,k))*(e120(i,j,k)-e120(i,j-1,k))*dy2i &
+	  elseif(.not. (e12p(i,j-1,k)==0)) then
+        e12p(i,j-1,k) = e12p(i,j-1,k) + (ekm(i,j,k)+ekm(i,j-1,k))*(e120(i,j,k)-e120(i,j-1,k))*dy2i &
                                   + ekm(i,j-1,k)/(2.*e120(i,j-1,k))* (&  !source terms
                                        -((u0(i,j,k)-u0(i,j-1,k))    / dy             + &
                                          (v0(i,j,k)-v0(i-1,j,k))    / dx       )**2  + &
@@ -1125,8 +1134,10 @@ contains
                                        +((v0(i,j,k+1)-v0(i,j,k))    / dzh(k+1)       + &
                                          (-2.*w0(i,j-1,k+1))        / dy       )**2    &
                                     )
+	  endif
     else !Special treatment for the lowest full level: k=1
-      e12p(i,j,k)   = e12p(i,j,k)   - (ekm(i,j,k)+ekm(i,j-1,k))*(e120(i,j,k)-e120(i,j-1,k))*dy2i &
+	  if(.not. (e12p(i,j,k)==0)) then
+        e12p(i,j,k)   = e12p(i,j,k)   - (ekm(i,j,k)+ekm(i,j-1,k))*(e120(i,j,k)-e120(i,j-1,k))*dy2i &
                                   + ekm(i,j,k)/(2.*e120(i,j,k))* (&  !source terms
                                        -((u0(i,j,k)-u0(i,j-1,k))    / dy             + &
                                          (v0(i,j,k)-v0(i-1,j,k))    / dx       )**2  + &
@@ -1138,8 +1149,9 @@ contains
                                        +((2.*u0(i+1,j,k))           / dy             + &
                                          (v0(i+1,j,k)-v0(i,j,k))    / dx       )**2    &
                                     )
-
-      e12p(i,j-1,k) = e12p(i,j-1,k) + (ekm(i,j,k)+ekm(i,j-1,k))*(e120(i,j,k)-e120(i,j-1,k))*dy2i &
+									
+      elseif(.not. (e12p(i,j-1,k)==0)) then
+        e12p(i,j-1,k) = e12p(i,j-1,k) + (ekm(i,j,k)+ekm(i,j-1,k))*(e120(i,j,k)-e120(i,j-1,k))*dy2i &
                                   + ekm(i,j-1,k)/(2.*e120(i,j-1,k))* (&  !source terms
                                        -((u0(i,j,k)-u0(i,j-1,k))    / dy             + &
                                          (v0(i,j,k)-v0(i-1,j,k))    / dx       )**2  + &
@@ -1151,6 +1163,7 @@ contains
                                        +((-2.*u0(i+1,j-1,k))        / dy             + &
                                          (v0(i+1,j,k)-v0(i,j,k))    / dx       )**2    &
                                     )
+	  endif
     endif
   end subroutine ywalle12
 
@@ -1163,7 +1176,8 @@ contains
     implicit none
 
     integer, intent(in)    :: i,j,k
-
+	
+	if(.not. (e12p(i,j,k)==0)) then
     e12p(i,j,k)   = e12p(i,j,k) - rhobh(k)/rhobf(k-1) * (dzf(k)*ekm(i,j,k-1) + dzf(k-1)*ekm(i,j,k)) &
                                   *(e120(i,j,k)-e120(i,j,k-1)) / dzh(k)**2 /dzf(k)     &
                                 + ekm(i,j,k)/(2.*e120(i,j,k))* (&  !source terms
@@ -1187,8 +1201,8 @@ contains
                                    +(2.*v0(i,j+1,k)                 / dzh(k)         + &
                                      (w0(i,j+1,k)-w0(i,j,k))        / dy       )**2    &
                                 )
-
-    e12p(i,j,k-1) = e12p(i,j,k-1) + rhobh(k)/rhobf(k) * (dzf(k-1)*ekm(i,j,k) + dzf(k)*ekm(i,j,k-1)) &
+	elseif(.not. (e12p(i,j,k-1)==0)) then
+      e12p(i,j,k-1) = e12p(i,j,k-1) + rhobh(k)/rhobf(k) * (dzf(k-1)*ekm(i,j,k) + dzf(k)*ekm(i,j,k-1)) &
                                     *(e120(i,j,k)-e120(i,j,k-1)) / dzh(k)**2  /dzf(k)  &
                                   + ekm(i,j,k-1)/(2.*e120(i,j,k-1))* (&  !source terms
                                    -((w0(i,j,k)-w0(i-1,j,k))        / dx             + &
@@ -1210,6 +1224,7 @@ contains
                                    +((-2.*v0(i,j+1,k-1))            / dzh(k)         + &
                                      (w0(i,j+1,k)-w0(i,j,k))        / dy       )**2    &
                                 )
+    endif
   end subroutine zwalle12
 
   subroutine wallaw(utan,dx,visc,tau)  !< Copied from work by Jasper Tomas

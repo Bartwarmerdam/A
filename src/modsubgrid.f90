@@ -582,7 +582,7 @@ contains
     do j=2,j1
       do i=2,i1
         kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
-		!if(myid==0 .and.i==9 .and. j==9) write(6,*) 'kmin = ',kmin
+		!if(myid==0 .and.i==7 .and. j==3) write(6,*) 'kmin = ',kmin
         putout(i,j,kmin) = putout(i,j,kmin) &
                   + 0.5 * ( &
                 ( (ekh(i+1,j,kmin)+ekh(i,j,kmin))*(putin(i+1,j,kmin)-putin(i,j,kmin)) &

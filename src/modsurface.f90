@@ -696,6 +696,7 @@ contains
     use modmpi,       only : my_real, mpierr, comm3d, mpi_sum, excj, excjs, mpi_integer, myidx, myidy
     use moduser,      only : surf_user
     use modruraldata, only : bc_height
+	use modmpi,       only : myid
     implicit none
 
     integer  :: i, j, n, patchx, patchy ,k !MK: k for applying surface parameterization at the height of the ground
@@ -997,12 +998,15 @@ contains
         end do
       end do
 
-      call MPI_ALLREDUCE(thlsl, thls, 1,  MY_REAL, MPI_SUM, comm3d,mpierr)
+      !if(.true.) write(6,*) 'in surface voor mpi_allreduce myid= thls=',myid,thls
+      !call MPI_ALLREDUCE(thlsl, thls, 1,  MY_REAL, MPI_SUM, comm3d,mpierr)
       call MPI_ALLREDUCE(qtsl, qts, 1,  MY_REAL, MPI_SUM, comm3d,mpierr)
-
-      thls = thls / ijtot
+      !if(.true.) write(6,*) 'in surface voor ijtot myid= thls=',myid,thls
+      !thls = thls / ijtot
       qts  = qts  / ijtot
       thvs = thls * (1. + (rv/rd - 1.) * qts)
+	  
+	  !if(.true.) write(6,*) 'in surface na ijtot myid= thls=',myid,thls
 
       if (lhetero) then
         call MPI_ALLREDUCE(lthls_patch(1:xpatches,1:ypatches), thls_patch(1:xpatches,1:ypatches),&
