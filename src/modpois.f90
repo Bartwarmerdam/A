@@ -301,6 +301,8 @@ contains
       end do
     end do
 
+    !write(6,*) 'solmpj: voor backward transform p1 at maxloc:',p(6,3,1)
+
     ! Backward FFT
     call fft2db(p,ih,jh)
 

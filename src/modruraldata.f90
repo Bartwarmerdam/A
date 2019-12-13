@@ -12,6 +12,8 @@ module modruraldata
   logical :: lnoslip        = .false.        !< Switch to use a no slip condition for the walls
   logical :: lwallfunc      = .false.        !< Switch to use wallfunctions to describe wallshear
 
+  integer :: imaxb,jmaxb ! Integers imax and jmax to prevent circular dependency
+  
   !< Field for the wall shear stress
   real, allocatable    :: damping(:,:,:)
   !< Field for the immersed boundary height

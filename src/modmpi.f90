@@ -553,10 +553,55 @@ contains
 
     return
   end subroutine slabsum
-  
+
+  ! Subroutine airslabsum - Calculates the slabsum of the cells containing air ignoring the immersed boundary cells
+  !                         Nair is the number of air cells at each height usable for calculating correct averages.
+  subroutine airslabsum(aver,ks,kf,var,ib,ie,jb,je,kb,ke,ibs,ies,jbs,jes,kbs,kes,Nair)
+    use modruraldata, only : bc_height, imaxb, jmaxb
+    implicit none
+
+    integer, intent(out) :: Nair(ks:kf)
+    integer :: ks,kf
+    integer :: ib,ie,jb,je,kb,ke,ibs,ies,jbs,jes,kbs,kes
+    real    :: aver(ks:kf)
+    real    :: var (ib:ie,jb:je,kb:ke)
+    real    :: averl(ks:kf)
+    real    :: avers(ks:kf)
+    integer :: Nairl(ks:kf)
+    integer :: Nairs(ks:kf)
+    integer :: i,j,k,kmin
+
+    averl(:)    = 0.
+    avers(:)    = 0.
+    aver(:)     = 0.
+    Nairl(:)    = 0
+    Nairs(:)    = 0
+    Nair(:)     = 0
+
+    do i=2,imaxb
+    do j=2,jmaxb
+    kmin=bc_height(i+myidx*imaxb,j+myidy*jmaxb)+1
+    do k=kmin,kes
+      averl(k) = averl(k)+var(i,j,k)
+      Nairl(k) = Nairl(k)+1
+    enddo
+    enddo
+    enddo
+
+    call MPI_ALLREDUCE(averl, avers, kf-ks+1,  MY_REAL, &
+                       MPI_SUM, comm3d,mpierr)
+    call MPI_ALLREDUCE(Nairl, Nairs, kf-ks+1,  MPI_INTEGER, &
+                       MPI_SUM, comm3d,mpierr)
+
+    aver = aver + avers
+    Nair = Nair + Nairs
+
+    return
+  end subroutine airslabsum
+
   subroutine mpi_get_time(val)
    real, intent(out) :: val
- 
+
    val = MPI_Wtime()
    call MPI_BCAST(val,1,MY_REAL   ,0,comm3d,mpierr)
 

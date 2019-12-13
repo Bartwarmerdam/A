@@ -1148,7 +1148,7 @@ contains
              ! Rib can be 0 if there is no surface flux
              ! L is capped at 1e6 below, so use the same cap here
              L = 1e6
-             write(*,*) 'Obukhov length: Rib = 0 -> setting L=1e6'
+             !write(*,*) 'Obukhov length: Rib = 0 -> setting L=1e6'
           else
              iter = 0
              L = obl(i,j)
