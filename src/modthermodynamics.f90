@@ -86,9 +86,9 @@ contains
     do k=1,k1
       thvh(k) = thvh(k)/Nair(k) ! thvh = thvh/ijtot
     enddo
-	!write(6,*) 'thvh(1) voor = ',thvh(1)
+    !write(6,*) 'thvh(1) voor = ',thvh(1)
     !thvh(1) = th0av(1)*(1+(rv/rd-1)*qt0av(1)-rv/rd*ql0av(1)) ! override first level
-	!write(6,*) 'thvh(1) na = ',thvh(1)
+    !write(6,*) 'thvh(1) na = ',thvh(1)
     !do k=1,k1
     !  thv0(2:i1,2:j1,k) = (thl0(2:i1,2:j1,k)+rlv*ql0(2:i1,2:j1,k)/(cp*exnf(k))) &
     !             *(1+(rv/rd-1)*qt0(2:i1,2:j1,k)-rv/rd*ql0(2:i1,2:j1,k))
@@ -96,13 +96,13 @@ contains
     do i=2,i1
       do j=2,j1
         kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
-        do k=kmin,k1
+        do k=1,k1!kmin,k1
           thv0(i,j,k) = (thl0(i,j,k)+rlv*ql0(i,j,k)/(cp*exnf(k))) &
                        *(1+(rv/rd-1)*qt0(i,j,k)-rv/rd*ql0(i,j,k))
         enddo
-        do k=1,(kmin-1)  ! set temperature inside the buildings to the slab average
-          thv0(i,j,k)=0.5*(thvh(k)+thvh(k+1))
-        enddo
+        !do k=1,(kmin-1)  ! set temperature inside the buildings to the slab average
+        !  thv0(i,j,k)=0.5*(thvh(k)+thvh(k+1))
+        !enddo
       enddo
     enddo
     thvf = 0.0
@@ -111,14 +111,14 @@ contains
       thvf(k)=thvf(k)/Nair(k) ! thvf = thvf/ijtot
       rhof(k) = presf(k)/(rd*thvf(k)*exnf(k))
     end do
-    do i=2,i1
-      do j=2,j1
-        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
-        do k=1,(kmin-1)  ! set temperature inside the buildings to the slab average
-          thv0(i,j,k)=thvf(k)
-        enddo
-      enddo
-    enddo
+    !do i=2,i1
+    !  do j=2,j1
+    !    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+    !    do k=1,(kmin-1)  ! set temperature inside the buildings to the slab average
+    !      thv0(i,j,k)=thvf(k)
+    !    enddo
+    !  enddo
+    !enddo
 
   end subroutine thermodynamics
 !> Cleans up after the run
@@ -702,37 +702,47 @@ contains
 !> Calculates the scalars at half levels.
 !! If the kappa advection scheme is active, interpolation needs to be done consistently.
   subroutine calc_halflev
-    use modglobal, only : i1,j1,k1,dzf,dzh,iadv_thl, iadv_qt, iadv_kappa
+    use modglobal, only : i1,j1,k1,dzf,dzh,iadv_thl, iadv_qt, iadv_kappa,imax,jmax
     use modfields, only : thl0,thl0h,qt0,qt0h
     use modsurfdata,only: qts,thls
+    use modmpi, only : myidx, myidy
+    use modruraldata, only: bc_height
     implicit none
 
-    integer :: i,j,k
+    integer :: i,j,k,kmin
 
     if (iadv_thl==iadv_kappa) then
       call halflev_kappa(thl0,thl0h)
-    else
-      do  k=2,k1
-        do  j=2,j1
-          do  i=2,i1
+    else !MK: Calculate half level values only outside of the buildings, with setting it to the surface value inside
+      do  j=2,j1
+        do  i=2,i1
+          kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+          do  k=kmin,k1
             thl0h(i,j,k) = (thl0(i,j,k)*dzf(k-1)+thl0(i,j,k-1)*dzf(k))/(2*dzh(k))
+          end do
+          do k=1,(kmin-1)
+            thl0h(i,j,k) = thls
           end do
         end do
       end do
     end if
-    thl0h(2:i1,2:j1,1) = thls
+    !thl0h(2:i1,2:j1,1) = thls
 
     if (iadv_qt==iadv_kappa) then
         call halflev_kappa(qt0,qt0h)
-    else
-      do  k=2,k1
-        do  j=2,j1
-          do  i=2,i1
+    else !MK: Calculate hal level values only outside of the buildings, with setting it to the surface value inside
+      do  j=2,j1
+        do  i=2,i1
+          kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+          do  k=kmin,k1
             qt0h(i,j,k)  = (qt0 (i,j,k)*dzf(k-1)+qt0 (i,j,k-1)*dzf(k))/(2*dzh(k))
+          end do
+          do k=1,(kmin-1)
+            qt0h(i,j,k)  = qts
           end do
         end do
       end do
-      qt0h(2:i1,2:j1,1)  = qts
+      !qt0h(2:i1,2:j1,1)  = qts
     end if
   end subroutine calc_halflev
 

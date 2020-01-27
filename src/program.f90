@@ -151,7 +151,7 @@ program DALES      !Version 4.0.0alpha
   use modruralboundary,   only : applyruralboundary, exitruralboundary ! MK
 
   ! Use to create a point source for scalar 1
-  use modfields,       only : svp,svm,u0,um,up,sv0
+  use modfields,       only : svp,svm,u0,um,up,sv0,thlp
   use modmpi,          only : myid
   
   use modsurfdata,     only : thls
@@ -165,7 +165,6 @@ program DALES      !Version 4.0.0alpha
 
   ! call initmpi initmpi depends on options in the namelist, call moved to startup
   call startup
-  
   !if(myid==0) write(6,*) 'na startup u,u,u=',maxval(u0),maxval(um),maxval(up)
 
 !---------------------------------------------------------
@@ -205,13 +204,14 @@ program DALES      !Version 4.0.0alpha
 !   3.0   MAIN TIME LOOP
 !------------------------------------------------------
   call testwctime
+  
 
   do while (timeleft>0 .or. rk3step < 3)
     call tstep_update                           ! Calculate new timestep
     !write(6,*) 'timeleft = ',timeleft
     !if(myid==0) write(6,*) 'Scalar start',svp(5,9,1,1)
-	!if(myid==0) write(6,*) 'qtp start',qtp(7,3,10)
-    !if(myid==0) write(6,*) 'svp start: svp(6,9,10,1)=',svp(6,9,10,1)
+	!if(myid==1) write(6,*) 'up start',up(5,2,2)
+    !if(myid==0) write(6,*) 'svp start: svp(6,8,10,1)=',svp(6,8,10,1)
     !if(myid==0) write(6,*) 'start of loop p1 at maxloc:',p(6,3,1)
 	call timedep
     call samptend(tend_start,firstterm=.true.)
@@ -228,28 +228,36 @@ program DALES      !Version 4.0.0alpha
 	!if(myid==0) write(6,*) 'voor surface thls=',thls
 	!if(myid==0) write(6,*) 'e12m voor surface',e12m(8,3,5)
 	!if(myid==0) write(6,*) 'qtp voor surface',qtp(7,3,10)
+    !if(myid==0) write(6,*) 'thltp voor surface',thlp(6,2,11)
     call surface
 
 !-----------------------------------------------------
 !   3.3   ADVECTION AND DIFFUSION
 !-----------------------------------------------------
-    !if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp voor advection: svp(30,9,9,1)=',svp(30,9,9,1)
+    !if(myid==0) write(6,*) 'svp voor advection: svp(6,8,10,1)=',svp(6,8,10,1)
 	!if(myid==0) write(6,*) 'na surface thls=',thls
     !if(myid==0) write(6,*) 'e12m voor advection',e12m(8,3,5)
 	!if(myid==0) write(6,*) 'qtp voor advection',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'thltp voor advection',thlp(6,2,11)
+	!if(myid==0) write(6,*) 'up voor advection',up(8,6,2)
 	call advection
 	!if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp na advection: svp(30,9,9,1)=',svp(30,9,9,1)
-    !if(myid==0) write(6,*) 'svp na advection: svp(5,9,1,1)=',svp(5,9,1,1)
+    !if(myid==0) write(6,*) 'svp na advection: svp(6,8,10,1)=',svp(6,8,10,1)
 	!if(myid==0) write(6,*) 'e12m na advection',e12m(8,3,5)
 	!if(myid==0) write(6,*) 'qtp na advection',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'thltp na advection',thlp(6,2,11)
     call samptend(tend_adv)
     !if(myid==0) write(6,*) 'svp voor subgrid: svp(5,9,1,1)=',svp(5,9,1,1)
 	!if(myid==0) write(6,*) 'qtp voor subgrid',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'thltp voor subgrid',thlp(6,2,11)
+	!if(myid==0) write(6,*) 'up voor subgrid',up(8,6,2)
     call subgrid
+	!if(myid==0) write(6,*) 'thltp na subgrid',thlp(6,2,11)
 	!if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp na subgrid: svp(30,9,9,1)=',svp(30,9,9,1)
 	!if(myid==0) write(6,*) 'qtp na subgrid',qtp(7,3,10)
 	!if(myid==0) write(6,*) 'e12m na subgrid',e12m(8,3,5)
     !if(myid==0) write(6,*) 'svp na subgrid: svp(5,9,1,1)=',svp(5,9,1,1)
+	!if(myid==1) write(6,*) 'up na subgrid',up(5,2,2)
     call canopy
     call samptend(tend_subg)
 
@@ -259,6 +267,7 @@ program DALES      !Version 4.0.0alpha
     call coriolis !remaining terms of ns equation
     call samptend(tend_coriolis)
 	!if(myid==0) write(6,*) 'qtp voor forces',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'up voor forces',up(8,6,2)
     call forces !remaining terms of ns equation
 	!if(myid==0) write(6,*) 'qtp na forces',qtp(7,3,10)
     call samptend(tend_force)
@@ -268,6 +277,7 @@ program DALES      !Version 4.0.0alpha
     call samptend(tend_ls)
     call microsources !Drizzle etc.
     call samptend(tend_micro)
+	!if(myid==0) write(6,*) 'thltp na remaining terms',thlp(6,2,11)
 
 !------------------------------------------------------
 !   3.4   EXECUTE ADD ONS
@@ -292,7 +302,9 @@ program DALES      !Version 4.0.0alpha
 	!if(myid==0) write(6,*) 'na samptend u,u,u=',maxval(u0),maxval(um),maxval(up)
 	!write(6,*) 'p1 voor poissson at maxloc:',p(6,3,1)
 	!if(myid==0) write(6,*) 'qtp voor poisson',qtp(7,3,10)
+	!if(myid==1) write(6,*) 'up voor poisson',up(5,2,2)
     call poisson
+	!if(myid==1) write(6,*) 'up na poisson',up(5,2,2)
 	!write(6,*) 'p1 na poisson at maxloc:',p(6,3,1)
 	!if(myid==0) write(6,*) 'na poisson u,u,u=',maxval(u0),maxval(um),maxval(up)
     call samptend(tend_pois,lastterm=.true.)
@@ -301,7 +313,11 @@ program DALES      !Version 4.0.0alpha
     !if(myid==0) write(6,*) 'Scalar before applyruralbc',svp(5,9,1,1)
 	!if(myid==0) write(6,*) 'qtp voor ruralbc',qtp(7,3,10)
 	!if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp voor ruralboundary: svp(30,9,9,1)=',svp(30,9,9,1)
-    call applyruralboundary                     ! MK Apply Immersed Boundary Method for the rural boundary
+    !if(myid==0) write(6,*) 'thltp voor ruralbc',thlp(6,2,11)
+	!if(myid==0) write(6,*) 'up voor ruralboundary',up(8,6,2)
+	call applyruralboundary   
+    !if(myid==0) write(6,*) 'thltp na ruralbc',thlp(6,2,11)
+	! MK Apply Immersed Boundary Method for the rural boundary
     !if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp voor ruralboundary: svp(30,9,9,1)=',svp(30,9,9,1)
     !if(myid==0) write(6,*) 'qtp na ruralbc',qtp(7,3,10)
 	!if(myid==0) write(6,*) 'e12m na applyruralboundary',e12m(8,3,5)
@@ -316,7 +332,9 @@ program DALES      !Version 4.0.0alpha
       svp(2,9,5,1)=(0.9-svm(2,9,5,1))/rk3coef
     endif
 	!if(myid==0) write(6,*) 'na applyruralbc u,u,u=',maxval(u0),maxval(um),maxval(up)
-    call tstep_integrate                        ! Apply tendencies to all variables
+    !if(myid==0) write(6,*) 'svp voor tstep_integrate: svp(6,8,10,1)=',svp(6,8,10,1)
+	!if(myid==1) write(6,*) 'up na ruralboundary',up(5,2,2)
+	call tstep_integrate                        ! Apply tendencies to all variables
     call boundary
     !call tiltedboundary
 !-----------------------------------------------------
@@ -324,6 +342,7 @@ program DALES      !Version 4.0.0alpha
 !-----------------------------------------------------
     !if(myid==0) write(6,*) 'na boundary u,u,u=',maxval(u0),maxval(um),maxval(up)
     call thermodynamics
+	!if(myid==0) write(6,*) 'thltp na thermodynamics',thlp(6,2,11)
 	!if(myid==0) write(6,*) 'na thermodynamics u,u,u=',maxval(u0),maxval(um),maxval(up)
     call leibniztend
 	!if(myid==0) write(6,*) 'qtp voor surface',qtp(7,3,10)
@@ -358,7 +377,7 @@ program DALES      !Version 4.0.0alpha
     call writerestartfiles
 	
 	!if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp at the end of the loop: svp(30,9,9,1)=',svp(30,9,9,1)
-
+    !if(myid==0) write(6,*) 'thltp at the end of the loop',thlp(6,2,11)
     !if(myid==0) write(6,*) 'Scalar at the end of the loop',svp(5,9,1,1)
 	!if(myid==0) write(6,*) 'e12m at the end of the loop',e12m(8,3,5)
 	!if(myid==0) write(6,*) 'qtp at the end of the loop',qtp(7,3,10)

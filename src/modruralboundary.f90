@@ -98,9 +98,9 @@ contains
       allocate(lshear_y (2-ih:imax+ih,2-jh:jmax+jh,kmax))
       allocate(lshear_z (2-ih:imax+ih,2-jh:jmax+jh,kmax))
     endif
-    allocate(lnorm_x (2-ih:imax+ih,2-jh:jmax+jh,kmax))
-    allocate(lnorm_y (2-ih:imax+ih,2-jh:jmax+jh,kmax))
-    allocate(lnorm_z (2-ih:imax+ih,2-jh:jmax+jh,kmax))
+    allocate(lnorm_x (1:i1,1:j1,kmax))
+    allocate(lnorm_y (1:i1,1:j1,kmax))
+    allocate(lnorm_z (1:i1,1:j1,kmax))
     if (lwallfunc) then
       allocate(shear(2-ih:i1+ih,2-jh:j1+jh,kmax,12))
       allocate(damping(2-ih:i1+ih,2-jh:j1+jh,kmax))
@@ -135,10 +135,11 @@ contains
         write(6,*) 'Reading inputfile in ruralboundary'
         open (ifinput,file='rural_bc.inp.'//cexpnr)
           do i=1,itot
-            read (ifinput,'(a200)') readstring
+            read (ifinput,'(a400)') readstring 
+            !< If the program is unable to read the full line of points increasing the length of the string (a400) might help
 
             do while (readstring(1:1)=='#')  ! Skip the lines that are commented (like headers)
-              read (ifinput,'(a200)') readstring
+              read (ifinput,'(a400)') readstring
             end do
             read(readstring,*) (bc_height(i+1,j+1),j=1,jtot)
           end do
@@ -191,9 +192,7 @@ contains
       end do
     endif
 	
-	if(myid==0) write(6,*) 'limmersed_boundary(4,9,1)=',limmersed_boundary(4,9,1)
-	if(myid==0) write(6,*) 'limmersed_boundary(5,9,1)=',limmersed_boundary(5,9,1)
-	if(myid==0) write(6,*) 'limmersed_boundary(6,9,1)=',limmersed_boundary(6,9,1)
+  
 
 	
     !if (lwallfunc) call mindistance
@@ -277,10 +276,11 @@ contains
     elseif(lwallfunc) then
       !< Find normal layers in x-direction
       do k=1,kmax
-        do j=1,jmax
-          do i=2,imax
+        do j=2,j1
+          do i=2,i1
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
+			if(myid==1 .and. i==8 .and. j==1 .and. k==2) write(6,*) 'at 8,6,2: ipos,jpos=',ipos,jpos
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos-1,jpos,k))) then
               lnorm_x(i,j,k)=.true.
             endif
@@ -292,8 +292,8 @@ contains
 
       !< Find normal layers in y-direction
       do k=1,kmax
-        do i=1,imax
-          do j=2,jmax
+        do i=2,j1
+          do j=2,j1
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos-1,k))) then
@@ -305,8 +305,8 @@ contains
 
       !< Find normal layers in z-direction
       do i=1,imax
-        do j=1,jmax
-          do k=2,kmax
+        do j=2,j1
+          do k=2,k1
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (.not. (limmersed_boundary(ipos,jpos,k)==limmersed_boundary(ipos,jpos,k-1))) then
@@ -324,17 +324,41 @@ contains
       !if(myid==0) write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
       !if(myid==0) write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
       !if(myid==0) write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
+      !if(myid==1) write(6,*) 'limmersed_boundary0(7,6,2)=',limmersed_boundary(7,1,2)
+      !if(myid==1) write(6,*) 'limmersed_boundary0(8,6,2)=',limmersed_boundary(8,1,2)
 
-      call boolexcjs( lnorm_x  , 2,imax,2,jmax,1,kmax,ih,jh)
-      call boolexcjs( lnorm_y  , 2,imax,2,jmax,1,kmax,ih,jh)
-      call boolexcjs( lnorm_z  , 2,imax,2,jmax,1,kmax,ih,jh)
+      !if(myid==1) write(6,*) 'limmersed_boundary0(:,6,2)=',limmersed_boundary(:,1,2)
+	  !if(myid==1) write(6,*) 'limmersed_boundary1(:,2,2)=',limmersed_boundary(:,2+jmax,2)
+	
+	  if(myid==1) write(6,*) 'lnorm_x1(8,1,2)=',lnorm_x(8,1,2)
+	  if(myid==0) write(6,*) 'lnorm_x0(8,6,2)=',lnorm_x(8,6,2)
+	  !if(myid==1) write(6,*) 'lnorm_x1(5,2,2)=',lnorm_x(5,2,2)
 
-      !lnorm_x(itot+1,:,:)=lnorm_x(1,:,:)
+      !call boolexcjs( lnorm_x  , 2,imax,2,jmax,1,kmax,ih,jh)
+      !call boolexcjs( lnorm_y  , 2,imax,2,jmax,1,kmax,ih,jh)
+      !call boolexcjs( lnorm_z  , 2,imax,2,jmax,1,kmax,ih,jh)
+
+      !if(myid==1) write(6,*) 'na excjs lnorm_x1(8,1,2)=',lnorm_x(8,1,2)
+	  !if(myid==0) write(6,*) 'na excjs lnorm_x0(8,6,2)=',lnorm_x(8,6,2)
+	  !lnorm_x(itot+1,:,:)=lnorm_x(1,:,:)
       !lnorm_x(:,jtot+1,:)=lnorm_x(:,1,:)
       !lnorm_y(itot+1,:,:)=lnorm_y(1,:,:)
       !lnorm_y(:,jtot+1,:)=lnorm_y(:,1,:)
       !lnorm_z(itot+1,:,:)=lnorm_z(1,:,:)
       !lnorm_z(:,jtot+1,:)=lnorm_z(:,1,:)
+	  
+	  
+	  !if(myid==0) write(6,*) 'jmax = ',jmax
+	  
+	  !if(myid==0) write(6,*) 'limmersed_boundary(7,:,2)=',limmersed_boundary(7,:,2)
+      !if(myid==0) write(6,*) 'limmersed_boundary(8,:,2)=',limmersed_boundary(8,:,2)
+      !if(myid==0) write(6,*) 'limmersed_boundary(9,:,2)=',limmersed_boundary(9,:,2)
+	
+	  !if(myid==0) write(6,*) 'limmersed_boundary0(:,6,2)=',limmersed_boundary(:,6,2)
+	  !if(myid==1) write(6,*) 'limmersed_boundary1(:,2,2)=',limmersed_boundary(:,2+jmax,2)
+	
+	  !if(myid==0) write(6,*) 'lnorm_x0(8,6,2)=',lnorm_x(8,6,2)
+	  !if(myid==1) write(6,*) 'lnorm_x1(5,2,2)=',lnorm_x(5,2,2)
 
       if(myid==0) write(6,*) 'Succesfully found normal layers in all directions'
     endif
@@ -436,11 +460,11 @@ contains
       deallocate(tempvp)
       deallocate(tempwp)
     endif
-    !write(6,*) 'deallocating lnorm_x'
+    write(6,*) 'deallocating lnorm_x'
     deallocate(lnorm_x)
-    !write(6,*) 'deallocating lnorm_y'
+    write(6,*) 'deallocating lnorm_y'
     deallocate(lnorm_y)
-    !write(6,*) 'deallocating lnorm_z'
+    write(6,*) 'deallocating lnorm_z'
     deallocate(lnorm_z)
     deallocate(limmersed_boundary)
     if(myid==0) write(6,*) 'Finished with exitruralboundary'
@@ -818,24 +842,11 @@ contains
           damping(i,j,1)   = min(damping(i,j,1),  1.-exp(-(yplus*0.04)**3.))
         end do
       end do
+	  !if(myid==1) write(6,*) 'up1 in ruralboundary voor lnormx',up(5,2,2)
+	  !if(myid==0) write(6,*) 'up0 in ruralboundary voor lnormx',up(8,6,2)
       do i=1,i1
         do j=1,j1
           do k=1,kmax
-            !< Now the normal velocities
-            if (lnorm_x(i,j,k)) then
-              !write(6,*) 'lnorm_x found, um = ',um(i,j,k)
-              !if((i==2 .and. j==4) .and. k==1) write(6,*) 'Before: u0 = ',u0(i,j,k),' um = ',um(i,j,k),' up = ',up(i,j,k)
-              up(i,j,k)=-um(i,j,k)*rk3coefi
-              !if((i==2 .and. j==4) .and. k==1) write(6,*) 'After: u0 = ',u0(i,j,k),' um = ',um(i,j,k),' up = ',up(i,j,k),' rk3coef = ',rk3coef
-            end if
-            if (lnorm_y(i,j,k)) then
-              !write(6,*) 'lnorm_y found, vm = ',vm(i,j,k)
-              vp(i,j,k)=-vm(i,j,k)*rk3coefi
-            end if
-            if (lnorm_z(i,j,k)) then
-              !write(6,*) 'lnorm_z found, wm = ',wm(i,j,k)
-              !wp(i,j,k)=-wm(i,j,k)*rk3coefi
-            end if
             ipos=i+myidx*imax
             jpos=j+myidy*jmax
             if (limmersed_boundary(ipos,jpos,k)) then
@@ -849,9 +860,26 @@ contains
               wp(i,j,k)=wp(i,j,k)+tempwp(i,j,k)
               thlp(i,j,k)=thlp(i,j,k)+tempthlp(i,j,k)
             endif
+            !< Now the normal velocities
+            if (lnorm_x(i,j,k)) then
+              !write(6,*) 'lnorm_x found, um = ',um(i,j,k)
+              !if(myid==0 .and. (i==8 .and. j==6) .and. k==2) write(6,*) 'Before: u0 = ',u0(i,j,k),' um = ',um(i,j,k),' up = ',up(i,j,k)
+              up(i,j,k)=-um(i,j,k)*rk3coefi
+              !if((i==2 .and. j==4) .and. k==1) write(6,*) 'After: u0 = ',u0(i,j,k),' um = ',um(i,j,k),' up = ',up(i,j,k),' rk3coef = ',rk3coef
+            end if
+            if (lnorm_y(i,j,k)) then
+              !write(6,*) 'lnorm_y found, vm = ',vm(i,j,k)
+              vp(i,j,k)=-vm(i,j,k)*rk3coefi
+            end if
+            if (lnorm_z(i,j,k)) then
+              !write(6,*) 'lnorm_z found, wm = ',wm(i,j,k)
+              !wp(i,j,k)=-wm(i,j,k)*rk3coefi
+            end if
           end do
         end do
       end do
+	  !if(myid==1) write(6,*) 'up1 in ruralboundary na lnormx',up(5,2,2)
+	  !if(myid==0) write(6,*) 'up0 in ruralboundary na lnormx',up(8,6,2)
     endif
     !if(myid==0) write(6,*) 'um,up inside wall at 33 before',um(18,33,5),up(18,33,5)
     !if(myid==0) write(6,*) 'limmersed_boundary at 33 before',limmersed_boundary(18,33,5)

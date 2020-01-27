@@ -37,7 +37,7 @@ subroutine advecc_2nd(putin,putout)
   use modruralboundary, only : lnorm_x, lnorm_y, lnorm_z, lruralboundary
   use modruraldata,     only : bc_height
   use modmpi, only : myid
-  use modfields, only : qtp,sv0,svp
+  use modfields, only : qtp,sv0,svp,thlp,thl0
   implicit none
 
   real, dimension(2-ih:i1+ih,2-jh:j1+jh,k1), intent(in)  :: putin !< Input: the cell centered field
@@ -59,15 +59,22 @@ subroutine advecc_2nd(putin,putout)
   !if(myid==0) write(6,*) 'voor advec thetalp(6,9,10)=',thlp(6,9,10)
   !if(myid==0) write(6,*) 'voor advec qtp=',qtp(7,3,10)
   !if(myid==0) write(6,*) 'voor advec thetalp(6,9,11)=',thlp(6,9,11)
+  !if(myid==0) write(6,*) 'thlp in advection,voor eerste loop',thlp(5,2,10)
   do k=1,kmax
     do j=2,j1
       do i=2,i1
-        !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec: -u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) ))* dxi5',-u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) )* dxi5
-        !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec: --u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) ))* dxi5',u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5
-		!if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec: -v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5',-v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5
+        !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'advec x: -u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) )* dxi5=',-u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) )* dxi5
+        !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'advec x: --u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5=',u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5
+        !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'advec y: -v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5=',-v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5
+        !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'advec y: --v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) )* dyi5=',v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) )* dyi5
+        !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'putin(i-1,j,k)=',putin(i-1,j,k)
+        !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'putin(i,j,k)=',putin(i,j,k)
+        !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'u0(i,j,k)=',u0(i,j,k)
+        !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'u0(i+1,j,k)=',u0(i+1,j,k)
+        !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec: -v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5',-v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5
         !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec: --v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) )* dyi5',v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) )* dyi5
         !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'v0(i,j,k),v0(i,j+1,k)=',v0(i,j,k),v0(i,j+1,k)
-		!if(i==30 .and. j==8 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec at j=8: -v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5',-v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5
+        !if(i==30 .and. j==8 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec at j=8: -v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5',-v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) )* dyi5
         !if(i==30 .and. j==10 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec at j=10: --v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) )* dyi5',v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) )* dyi5
         putout(i,j,k)  = putout(i,j,k)- (  &
               ( &
@@ -82,10 +89,11 @@ subroutine advecc_2nd(putin,putout)
       end do
     end do
   end do
-  
+
   !if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) '======\n advecc na x,y voor z: svp(30,9,9,1)=',svp(30,9,9,1)
 
   if (leq) then ! equidistant grid
+    !if(myid==0) write(6,*) 'leq: equidistant grid'
 
     do j=2,j1
       do i=2,i1
@@ -99,8 +107,11 @@ subroutine advecc_2nd(putin,putout)
     do j=2,j1
     do k=2,kmax
        do i=2,i1
-         !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec: - (1./rhobf(k))*(w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)))*dzi5',- (1./rhobf(k))*(w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)))*dzi5
-         !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advec: - (1./rhobf(k))*(-w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)))*dzi5',- (1./rhobf(k))*(-w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)))*dzi5
+         !if(i==5 .and. j==2 .and. k==9 .and. myid==0) write(6,*) 'thl0=',thl0(i,j,k)
+         !if(i==5 .and. j==2 .and. k==9 .and. myid==0) write(6,*) 'advec: - (1./rhobf(k))*(w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)))*dzi5',- (1./rhobf(k))*(w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)))*dzi5
+         !if(i==5 .and. j==2 .and. k==9 .and. myid==0) write(6,*) 'advec: - (1./rhobf(k))*(-w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)))*dzi5',- (1./rhobf(k))*(-w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)))*dzi5
+         !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'advec z: - (1./rhobf(k))*(w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)))*dzi5',- (1./rhobf(k))*(w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)))*dzi5
+         !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'advec z: - (1./rhobf(k))*(-w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)))*dzi5',- (1./rhobf(k))*(-w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)))*dzi5
           putout(i,j,k)  = putout(i,j,k)- (1./rhobf(k))*( &
                 w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)) &
                 -w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)) &
@@ -137,101 +148,232 @@ subroutine advecc_2nd(putin,putout)
   !if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advecc voor lruralbc: svp(30,9,9,1)=',svp(30,9,9,1)
   !if(myid==0) write(6,*) 'voor advec ruralbc thetalp(6,9,10)=',thlp(6,9,10)
   !if(myid==0) write(6,*) 'voor advec ruralbc thetalp(6,9,11)=',thlp(6,9,11)
-
+  !if(myid==0) write(6,*) 'thlp in advection,voor lruralboundary',thlp(5,2,10)
+  !if(myid==0) write(6,*) 'putout in advection,voor lruralboundary',putout(5,2,10)
+  !if(myid==0) write(6,*) 'svp in advection voor lruralbc: svp(6,8,10,1)=',svp(6,8,10,1)
+  !if(myid==0) write(6,*) 'putout in advection, voor lruralbc',putout(6,8,10)
 
   if (lruralboundary) then ! MK: Apply immersed boundary conditions at the locations of the walls
     tempputout(:,:,:)=0.
+    !if(myid==0) write(6,*) 'tempputout in advection,begin van lruralboundary',tempputout(5,2,9)
     do i=2,i1
       do j=2,j1
         do k=1,kmax
           !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'i,j,k,lnormx,y,z=',i,j,k,lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-		  !if(i==31 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'i,j,k,lnormx,y,z=',i,j,k,lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-		  !if(i==30 .and. j==10 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'i,j,k,lnormx,y,z=',i,j,k,lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-		  !if(i==30 .and. j==9 .and. k==10 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'i,j,k,lnormx,y,z=',i,j,k,lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-		  !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-          !if(i==5 .and. j==9 .and. k==2 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-          !if(i==6 .and. j==9 .and. k==9 .and. myid==0) write(6,*) 'lnormx,y,z=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
-          if (lnorm_x(i,j,k)) then
-            !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) '30,9,9 xnorm'
-            !if(i==7 .and. j==9 .and. k==10 .and. myid==0) write(6,*) '7,9,10 xnorm'
-            !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) '-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) ))* dxi5',-u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) )* dxi5
+          !if(i==31 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'i,j,k,lnormx,y,z=',i,j,k,lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==30 .and. j==10 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'i,j,k,lnormx,y,z=',i,j,k,lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==30 .and. j==9 .and. k==10 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'i,j,k,lnormx,y,z=',i,j,k,lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==5 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'lnormx,y,z,5,2,10=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==6 .and. j==2 .and. k==10 .and. myid==0) write(6,*) 'lnormx,y,z,6,2,10=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==5 .and. j==3 .and. k==10 .and. myid==0) write(6,*) 'lnormx,y,z,5,3,10=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          !if(i==5 .and. j==2 .and. k==11 .and. myid==0) write(6,*) 'lnormx,y,z,5,2,11=',lnorm_x(i,j,k),lnorm_y(i,j,k),lnorm_z(i,j,k)
+          if(lnorm_x(i,j,k) .or. lnorm_y(i,j,k) .or. lnorm_z(i,j,k)) then
+            !MK: >>> Complete removal of advection of point (i,j,k)
+    !        tempputout(i,j,k)=tempputout(i,j,k)+( &
+    !          -u0(i  ,j  ,k)*dxi5*(putin(i,j,k)+putin(i-1,j,k)) &
+    !          +u0(i+1,j  ,k)*dxi5*(putin(i,j,k)+putin(i+1,j,k)) &
+    !          -v0(i  ,j  ,k)*dyi5*(putin(i,j,k)+putin(i-1,j,k)) &
+    !          +v0(i  ,j+1,k)*dyi5*(putin(i,j,k)+putin(i-1,j,k)) &
+    !          )
+    !        if (leq) then ! equidistant grid
+    !          tempputout(i,j,k)  = tempputout(i,j,k) + (1./rhobf(k))*( &
+    !            -w0(i,j,k  ) * (rhobf(k-1) * putin(i,j,k-1) + rhobf(k) * putin(i,j,k)) &
+    !            +w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)) &
+    !            )*dzi5
+    !        else   ! non-equidistant grid
+    !          write(6,*) 'ERROR NON-EQUIDISTANT GRID NOT IMPLEMENTED YET'
+    !          tempputout(i,j,k)  = tempputout(i,j,k) + (1./rhobf(k))*( &
+    !            !w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) * dzf(k) + rhobf(k) * putin(i,j,k) * dzf(k+1) ) / dzh(k+1) &
+    !            -w0(i,j,k ) * (rhobf(k-1) * putin(i,j,k-1) * dzf(k) + rhobf(k) * putin(i,j,k) * dzf(k-1) ) / dzh(k) &
+    !            )/ (2. * dzf(k))
+    !        endif
+            !MK: >>> Correct new advection of point (i,j,k)
             tempputout(i,j,k)=tempputout(i,j,k)+( &
-              !u0(i+1,j,k) * ( putin(i+1,j,k) + putin(i,j,k) ) &
-              -u0(i ,j,k) * ( putin(i-1,j,k) + putin(i,j,k) ) &
-                )* dxi5
-            tempputout(i-1,j,k)=tempputout(i-1,j,k)+( &
-              u0(i,j,k) * ( putin(i,j,k) + putin(i-1,j,k) ) &
-              !-u0(i-1 ,j,k) * ( putin(i-2,j,k) + putin(i-1,j,k) ) &
-                )* dxi5
-          endif
-          if (lnorm_y(i,j,k)) then
-            !if(i==6 .and. j==9 .and. k==10 .and. myid==0) write(6,*) '6,9,10 ynorm'
-            !if(i==6 .and. j==10 .and. k==10 .and. myid==0) write(6,*) '6,10,10 ynorm'
+    !          -u0(i  ,j,k)*dxi5*(putin(i  ,j,k)-putin(i-1,j,k)) &
+    !          +u0(i+1,j,k)*dxi5*(putin(i+1,j,k)-putin(i  ,j,k)) &
+              -(u0(i+1,j,k)-u0(i,j,k))*dxi5*putin(i,j,k) &
+              )
             tempputout(i,j,k)=tempputout(i,j,k)+( &
-              !v0(i,j+1,k) * ( putin(i,j+1,k) + putin(i,j,k) ) &
-              -v0(i,j ,k) * ( putin(i,j-1,k) + putin(i,j,k) ) &
-              )* dyi5
-            tempputout(i,j-1,k)=tempputout(i,j-1,k)+( &
-              v0(i,j,k) * ( putin(i,j,k) + putin(i,j-1,k) ) &
-              !-v0(i,j-1 ,k) * ( putin(i,j-2,k) + putin(i,j-1,k) ) &
-              )* dyi5
-          endif
-          !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '4,9,1 lnorm_z=',lnorm_z(i,j,k)
-          !if(i==4 .and. j==9 .and. k==2 .and. myid==0) write(6,*) '4,9,2 lnorm_z=',lnorm_z(i,j,k)
-          !if(i==6 .and. j==9 .and. k==10 .and. myid==0) write(6,*) '6,9 bc_height=',bc_height(i,j)
-          !if(i==5 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '5,9 bc_height=',bc_height(i,j)
-          if (lnorm_z(i,j,k).and. (.not. k==1)) then
-            !if(i==4 .and. j==9 .and. k==1 .and. myid==0) write(6,*) '4,9,1 znorm'
-            !if(i==4 .and. j==9 .and. k==2 .and. myid==0) write(6,*) '4,9,2 znorm'
-            !if(i==7 .and. j==3 .and. k==11 .and. myid==0) write(6,*) 'zwall (1./rhobf(k-1))*(w0(i,j,k) * (rhobf(k) * putin(i,j,k) + rhobf(k-1) * putin(i,j,k-1)))*dzi5',(1./rhobf(k-1))*(w0(i,j,k) * (rhobf(k) * putin(i,j,k) + rhobf(k-1) * putin(i,j,k-1)))*dzi5
+    !          -v0(i,j  ,k)*dyi5*(putin(i,j  ,k)-putin(i,j-1,k)) &
+    !          +v0(i,j+1,k)*dyi5*(putin(i,j+1,k)-putin(i,j  ,k)) &
+              -(v0(i,j+1,k)-v0(i,j,k))*dyi5*putin(i,j,k) &
+              )
             if (leq) then ! equidistant grid
-              tempputout(i,j,k)  = tempputout(i,j,k) + (1./rhobf(k))*( &
-                !w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) + rhobf(k) * putin(i,j,k)) &
-                -w0(i,j,k)   * (rhobf(k-1) * putin(i,j,k-1)+ rhobf(k) * putin(i,j,k)) &
-                )*dzi5
-              tempputout(i,j,k-1)  = tempputout(i,j,k-1) + (1./rhobf(k-1))*( &
-                w0(i,j,k) * (rhobf(k) * putin(i,j,k) + rhobf(k-1) * putin(i,j,k-1)) &
-                !-w0(i,j,k-1)   * (rhobf(k-2) * putin(i,j,k-2)+ rhobf(k-1) * putin(i,j,k-1)) &
-                )*dzi5
+              tempputout(i,j,k)=tempputout(i,j,k)+( &
+    !            -w0(i,j,k  )*dzi5*(rhobf(k  )*putin(i,j,k  )-rhobf(k-1)*putin(i,j,k-1)) &
+    !            +w0(i,j,k+1)*dzi5*(rhobf(k+1)*putin(i,j,k+1)-rhobf(k  )*putin(i,j,k  )) &
+                -(w0(i,j,k+1)-w0(i,j,k))*dzi5*putin(i,j,k) &
+              )
             else   ! non-equidistant grid
-              tempputout(i,j,k)  = tempputout(i,j,k) + (1./rhobf(k))*( &
-                !w0(i,j,k+1) * (rhobf(k+1) * putin(i,j,k+1) * dzf(k) + rhobf(k) * putin(i,j,k) * dzf(k+1) ) / dzh(k+1) &
-                -w0(i,j,k ) * (rhobf(k-1) * putin(i,j,k-1) * dzf(k) + rhobf(k) * putin(i,j,k) * dzf(k-1) ) / dzh(k) &
-                )/ (2. * dzf(k))
-              tempputout(i,j,k-1)  = tempputout(i,j,k-1) + (1./rhobf(k-1))*( &
-                w0(i,j,k) * (rhobf(k) * putin(i,j,k) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-1) ) / dzh(k) &
-                !-w0(i,j,k-1 ) * (rhobf(k-2) * putin(i,j,k-2) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-2) ) / dzh(k-1) &
-                )/ (2. * dzf(k))
+              write(6,*) "ERROR NON-EQUIDISTANT GRID NOT IMPLEMENTED YET"
+            endif
+
+            if (lnorm_x(i,j,k)) then
+              !MK: >>> Complete removal of advection of point (i-1,j,k)
+              tempputout(i-1,j,k)=tempputout(i-1,j,k)!+( &
+    !            -u0(i-1,j  ,k)*dxi5*(putin(i-1,j  ,k)+putin(i-2,j  ,k)) &
+    !            +u0(i  ,j  ,k)*dxi5*(putin(i  ,j  ,k)+putin(i-1,j  ,k)) &
+    !            -v0(i-1,j  ,k)*dyi5*(putin(i-1,j  ,k)+putin(i-1,j-1,k)) &
+    !            +v0(i-1,j+1,k)*dyi5*(putin(i-1,j+1,k)+putin(i-1,j  ,k)) &
+                !)
+              if (leq) then ! equidistant grid
+                tempputout(i-1,j,k)  = tempputout(i-1,j,k)! + (1./rhobf(k))*( &
+    !              -w0(i-1,j,k  ) * (rhobf(k-1) * putin(i-1,j,k-1) + rhobf(k) * putin(i-1,j,k)) &
+    !              +w0(i-1,j,k+1) * (rhobf(k+1) * putin(i-1,j,k+1) + rhobf(k) * putin(i-1,j,k)) &
+    !              )*dzi5
+              else   ! non-equidistant grid
+                write(6,*) 'ERROR NON-EQUIDISTANT GRID NOT IMPLEMENTED YET'
+                tempputout(i,j,k-1)  = tempputout(i,j,k-1) + (1./rhobf(k-1))*( &
+                  w0(i,j,k) * (rhobf(k) * putin(i,j,k) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-1) ) / dzh(k) &
+                  !-w0(i,j,k-1 ) * (rhobf(k-2) * putin(i,j,k-2) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-2) ) / dzh(k-1) &
+                  )/ (2. * dzf(k))
+              endif
+              !MK: >>> Correct new advection
+              tempputout(i-1,j,k)=tempputout(i-1,j,k)+( &
+    !            -u0(i-1,j,k)*dxi5*(putin(i-1,j,k)-putin(i-2,j,k)) &
+    !            +u0(i  ,j,k)*dxi5*(putin(i  ,j,k)-putin(i-1,j,k)) &
+                -(u0(i,j,k)-u0(i-1,j,k))*dxi5*putin(i-1,j,k) &
+                )
+              tempputout(i-1,j,k)=tempputout(i-1,j,k)+( &
+    !            -v0(i-1,j  ,k)*dyi5*(putin(i-1,j  ,k)-putin(i-1,j-1,k)) &
+    !            +v0(i-1,j+1,k)*dyi5*(putin(i-1,j+1,k)-putin(i-1,j  ,k)) &
+                -(v0(i-1,j+1,k)-v0(i-1,j,k))*dyi5*putin(i-1,j,k) &
+                )
+              if (leq) then ! equidistant grid
+                tempputout(i-1,j,k)=tempputout(i-1,j,k)+( &
+    !              -w0(i-1,j,k  )*dzi5*(rhobf(k  )*putin(i-1,j,k  )-rhobf(k-1)*putin(i-1,j,k-1)) &
+    !              +w0(i-1,j,k+1)*dzi5*(rhobf(k+1)*putin(i-1,j,k+1)-rhobf(k  )*putin(i-1,j,k  )) &
+                  -(w0(i-1,j,k+1)-w0(i-1,j,k))*dzi5*putin(i-1,j,k) &
+                )
+              else   ! non-equidistant grid
+                write(6,*) "ERROR NON-EQUIDISTANT GRID NOT IMPLEMENTED YET"
+              endif
+              !MK: >>> removal of advection at the wall
+              tempputout(i-1,j,k)=tempputout(i-1,j,k)+u0(i,j,k)*dxi5*(putin(i-1,j,k)-putin(i,j,k))
+              tempputout(i  ,j,k)=tempputout(i  ,j,k)-u0(i,j,k)*dxi5*(putin(i-1,j,k)-putin(i,j,k))
+            endif
+            if (lnorm_y(i,j,k)) then
+              !MK: >>> Complete removal of advection of point (i,j-1,k)
+              tempputout(i,j-1,k)=tempputout(i,j-1,k)!+( &
+    !            -u0(i  ,j-1,k)*dxi5*(putin(i  ,j-1,k)+putin(i-1,j-1,k)) &
+    !            +u0(i+1,j-1,k)*dxi5*(putin(i+1,j-1,k)+putin(i  ,j-1,k)) &
+    !            -v0(i  ,j-1,k)*dyi5*(putin(i  ,j-1,k)+putin(i  ,j-2,k)) &
+    !            +v0(i  ,j  ,k)*dyi5*(putin(i  ,j  ,k)+putin(i  ,j-1,k)) &
+                !)
+              if (leq) then ! equidistant grid
+                tempputout(i,j-1,k)  = tempputout(i,j-1,k)! + (1./rhobf(k))*( &
+    !              -w0(i,j-1,k  ) * (rhobf(k-1) * putin(i,j-1,k-1) + rhobf(k) * putin(i,j-1,k)) &
+    !              +w0(i,j-1,k+1) * (rhobf(k+1) * putin(i,j-1,k+1) + rhobf(k) * putin(i,j-1,k)) &
+                  !)*dzi5
+              else   ! non-equidistant grid
+                write(6,*) 'ERROR NON-EQUIDISTANT GRID NOT IMPLEMENTED YET'
+                tempputout(i,j,k-1)  = tempputout(i,j,k-1) + (1./rhobf(k-1))*( &
+                  w0(i,j,k) * (rhobf(k) * putin(i,j,k) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-1) ) / dzh(k) &
+                  !-w0(i,j,k-1 ) * (rhobf(k-2) * putin(i,j,k-2) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-2) ) / dzh(k-1) &
+                  )/ (2. * dzf(k))
+              endif
+              !MK: >>> Correct new advection
+              tempputout(i,j-1,k)=tempputout(i,j-1,k)+( &
+    !            -u0(i  ,j-1,k)*dxi5*(putin(i  ,j-1,k)-putin(i-1,j-1,k)) &
+    !            +u0(i+1,j-1,k)*dxi5*(putin(i+1,j-1,k)-putin(i  ,j-1,k)) &
+                -(u0(i+1,j-1,k)-u0(i,j-1,k))*dxi5*putin(i,j-1,k) &
+                )
+              tempputout(i,j-1,k)=tempputout(i,j-1,k)+( &
+    !            -v0(i,j-1,k)*dyi5*(putin(i,j-1,k)-putin(i,j-2,k)) &
+    !            +v0(i,j  ,k)*dyi5*(putin(i,j  ,k)-putin(i,j-1,k)) &
+                -(v0(i,j,k)-v0(i,j-1,k))*dyi5*putin(i,j-1,k) &
+                )
+              if (leq) then ! equidistant grid
+                tempputout(i,j-1,k)=tempputout(i,j-1,k)+( &
+    !              -w0(i,j-1,k  )*dzi5*(rhobf(k  )*putin(i,j-1,k  )-rhobf(k-1)*putin(i,j-1,k-1)) &
+    !              +w0(i,j-1,k+1)*dzi5*(rhobf(k+1)*putin(i,j-1,k+1)-rhobf(k  )*putin(i,j-1,k  )) &
+                -(w0(i,j-1,k+1)-w0(i,j-1,k))*dzi5*putin(i,j-1,k) &
+                )
+              else   ! non-equidistant grid
+                write(6,*) "ERROR NON-EQUIDISTANT GRID NOT IMPLEMENTED YET"
+              endif
+              !MK: >>> removal of advection at the wall
+              tempputout(i,j-1,k)=tempputout(i,j-1,k)+v0(i,j,k)*dyi5*(putin(i,j-1,k)-putin(i,j,k))
+              tempputout(i,j  ,k)=tempputout(i,j  ,k)-v0(i,j,k)*dyi5*(putin(i,j-1,k)-putin(i,j,k))
+            endif
+            if (lnorm_z(i,j,k)) then
+              !MK: >>> Complete removal of advection of point (i,j,k-1)
+              tempputout(i,j,k-1)=tempputout(i,j,k-1)!+( &
+    !            -u0(i  ,j  ,k-1)*dxi5*(putin(i  ,j  ,k-1)+putin(i-1,j  ,k-1)) &
+    !            +u0(i+1,j  ,k-1)*dxi5*(putin(i+1,j  ,k-1)+putin(i  ,j  ,k-1)) &
+    !            -v0(i  ,j  ,k-1)*dyi5*(putin(i  ,j  ,k-1)+putin(i  ,j-1,k-1)) &
+    !            +v0(i  ,j+1,k-1)*dyi5*(putin(i  ,j+1,k-1)+putin(i  ,j  ,k-1)) &
+                !)
+              if (leq) then ! equidistant grid
+                tempputout(i,j,k-1)  = tempputout(i,j,k-1)! + (1./rhobf(k-1))*( &
+    !              -w0(i,j,k-1) * (rhobf(k-2) * putin(i,j,k-2) + rhobf(k-1) * putin(i,j,k-1)) &
+    !              +w0(i,j,k  ) * (rhobf(k  ) * putin(i,j,k  ) + rhobf(k-1) * putin(i,j,k-1)) &
+    !              )*dzi5
+              else   ! non-equidistant grid
+                write(6,*) 'ERROR NON-EQUIDISTANT GRID NOT IMPLEMENTED YET'
+                tempputout(i,j,k-1)  = tempputout(i,j,k-1) + (1./rhobf(k-1))*( &
+                  w0(i,j,k) * (rhobf(k) * putin(i,j,k) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-1) ) / dzh(k) &
+                  !-w0(i,j,k-1 ) * (rhobf(k-2) * putin(i,j,k-2) * dzf(k-1) + rhobf(k-1) * putin(i,j,k-1) * dzf(k-2) ) / dzh(k-1) &
+                  )/ (2. * dzf(k))
+              endif
+              !MK: >>> Correct new advection
+              tempputout(i,j,k-1)=tempputout(i,j,k-1)+( &
+    !            -u0(i  ,j,k-1)*dxi5*(putin(i  ,j,k-1)-putin(i-1,j,k-1)) &
+    !            +u0(i+1,j,k-1)*dxi5*(putin(i+1,j,k-1)-putin(i  ,j,k-1)) &
+                -(u0(i+1,j,k-1)-u0(i,j,k-1))*dxi5*putin(i,j,k-1) &
+                )
+              tempputout(i,j,k-1)=tempputout(i,j,k-1)+( &
+    !            -v0(i,j  ,k-1)*dyi5*(putin(i,j  ,k-1)-putin(i,j-1,k-1)) &
+    !            +v0(i,j+1,k-1)*dyi5*(putin(i,j+1,k-1)-putin(i,j  ,k-1)) &
+                -(v0(i,j+1,k-1)-v0(i,j,k-1))*dyi5*putin(i,j,k-1) &
+                )
+              if (leq) then ! equidistant grid
+                tempputout(i,j,k-1)=tempputout(i,j,k-1)+( &
+    !              -w0(i,j,k-1)*dzi5*(rhobf(k-1)*putin(i,j,k-1)-rhobf(k-2)*putin(i,j,k-2)) &
+    !              +w0(i,j,k  )*dzi5*(rhobf(k  )*putin(i,j,k  )-rhobf(k-1)*putin(i,j,k-1)) &
+                -(w0(i,j,k)-w0(i,j,k-1))*dzi5*putin(i,j,k-1) &
+                )
+              else   ! non-equidistant grid
+                write(6,*) "ERROR NON-EQUIDISTANT GRID NOT IMPLEMENTED YET"
+              endif
+              !MK: >>> removal of advection at the wall
+              tempputout(i,j,k-1)=tempputout(i,j,k-1)+w0(i,j,k)*(rhobf(k-1)*putin(i,j,k-1)-rhobf(k)*putin(i,j,k))/(2.*dzf(k))
+              tempputout(i,j,k  )=tempputout(i,j,k  )-w0(i,j,k)*(rhobf(k-1)*putin(i,j,k-1)-rhobf(k)*putin(i,j,k))/(2.*dzf(k))
             endif
           endif
         end do
       end do
     end do
+    !if(myid==0) write(6,*) 'tempputout in advection,midden in lruralboundary',tempputout(5,2,10)
+    !if(myid==0) write(6,*) 'putout in advection,midden in lruralboundary',putout(5,2,10)
     !Apply correction step
     do i=2,i1
       do j=2,j1
         do k=1,kmax
-		  !if(myid==0 .and. i==5 .and. j==9 .and. k==1) write(6,*) 'tempputout(5,9,1)=',tempputout(i,j,k)
-		  !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'putout(30,9,9)=',putout(i,j,k)
-		  !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'tempputout(30,9,9)=',tempputout(i,j,k)
-		  !if(myid==0 .and. i==5 .and. j==9 .and. k==1) write(6,*) 'putout(5,9,1)+tempputout(i,j,k)=',putout(i,j,k)+tempputout(i,j,k)
-          if((putout(i,j,k)+tempputout(i,j,k))/tempputout(i,j,k)<eps1) then
-		    !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) '<eps putout=0'
-		    putout(i,j,k)=0.
-		  else
-		    !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) '>eps putout=not 0'
-		    putout(i,j,k)=putout(i,j,k)+tempputout(i,j,k)
-	      endif
+          !if(myid==0 .and. i==5 .and. j==9 .and. k==1) write(6,*) 'tempputout(5,9,1)=',tempputout(i,j,k)
+          !if(i==6 .and. j==8 .and. k==10 .and. myid==0) write(6,*) 'putout(6,8,10)=',putout(i,j,k)
+          !if(i==6 .and. j==8 .and. k==10 .and. myid==0) write(6,*) 'tempputout(6,8,10)=',tempputout(i,j,k)
+          !if(myid==0 .and. i==6 .and. j==8 .and. k==10) write(6,*) 'putout(6,8,10)+tempputout(i,j,k)=',putout(i,j,k)+tempputout(i,j,k)
+		  !if(myid==0 .and. i==6 .and. j==8 .and. k==10) write(6,*) '(putout(6,8,10)+tempputout(i,j,k))/tempputout=',(putout(i,j,k)+tempputout(i,j,k))/tempputout(i,j,k)
+          !if(myid==0 .and. i==6 .and. j==8 .and. k==10) write(6,*) 'eps1',eps1
+		  if(putin(i,j,k) == 0.) then
+            !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) '<eps putout=0'
+            putout(i,j,k)=0.
+          else
+            !if(i==30 .and. j==9 .and. k==9 .and. myid==0 .and. sv0(30,9,9,1)>1) write(6,*) '>eps putout=not 0'
+            putout(i,j,k)=putout(i,j,k)+tempputout(i,j,k)
+          endif
         end do
       end do
     end do
   endif
-  
+  !if(myid==0) write(6,*) 'thlp in advection,na lruralboundary',thlp(5,2,10)
+
   !if(myid==0) write(6,*) 'na advec ruralbc qtp=',qtp(7,3,10)
 
 
   !if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'advecc na lruralbc: svp(30,9,9,1)=',svp(30,9,9,1)
-  !if(myid==0) write(6,*) 'advecc na: svp(7,8,10,1)=',svp(7,8,10,1)
+  !if(myid==0) write(6,*) 'advecc na: svp(6,8,10,1)=',svp(6,8,10,1)
   !if(myid==0) write(6,*) 'na advec ruralbc thetalp(6,9,10)=',thlp(6,9,10)
   !if(myid==0) write(6,*) 'na advec ruralbc thetalp(6,9,11)=',thlp(6,9,11)
 
