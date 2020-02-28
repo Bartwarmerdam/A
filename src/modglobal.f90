@@ -166,6 +166,7 @@ save
 
       integer(kind=longint) :: dt                !<     * time integration interval
       real :: rdt                !<     * time integration interval
+      integer               :: dt_reason=0  !< indicates which dt limit was the lowest
       integer(kind=longint) :: timee             !<     * elapsed time since the "cold" start
       real :: rtimee             !<     * elapsed time since the "cold" start
       integer(kind=longint) :: btime             !<     * time of (re)start
@@ -225,6 +226,7 @@ contains
 !! Set courant number, calculate the grid sizes (both computational and physical), and set the coriolis parameter
   subroutine initglobal
     use modmpi, only : nprocx, nprocy, myid,comm3d, my_real, mpierr
+	use modruraldata, only : imaxb,jmaxb
     implicit none
 
     integer :: advarr(4)
@@ -273,6 +275,8 @@ contains
     ! phsgrid
     imax = itot/nprocx
     jmax = jtot/nprocy
+	imaxb = imax
+	jmaxb = jmax
     i1=imax+1
     j1=jmax+1
     k1=kmax+1

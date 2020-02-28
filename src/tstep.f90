@@ -43,11 +43,11 @@
 subroutine tstep_update
 
 
-  use modglobal, only : i1,j1,rk3step,timee,rtimee,dtmax,dt,ntrun,courant,peclet,&
+  use modglobal, only : i1,j1,rk3step,timee,rtimee,dtmax,dt,ntrun,courant,peclet,dt_reason, &
                         kmax,dx,dy,dzh,dt_lim,ladaptive,timeleft,idtmax,rdt,tres,longint ,lwarmstart
   use modfields, only : um,vm,wm
   use modsubgrid,only : ekm,ekh
-  use modmpi,    only : comm3d,mpierr,mpi_max,my_real
+  use modmpi,    only : comm3d,mpierr,mpi_max,my_real,myid,myidx,myidy
   implicit none
 
   real, allocatable, dimension (:) :: courtotl,courtot
@@ -85,7 +85,8 @@ subroutine tstep_update
         end do
         call MPI_ALLREDUCE(peclettotl,peclettot,1,MY_REAL,MPI_MAX,comm3d,mpierr)
         if ( pecletold>0) then
-          dt = min(timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint))
+           dt = min(timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint))
+           dt_reason = minloc((/timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint)/),1)
           if (abs(courtotmax-courold)/courold<0.1 .and. (abs(peclettot-pecletold)/pecletold<0.1)) then
             spinup = .false.
           end if
@@ -122,8 +123,17 @@ subroutine tstep_update
            peclettotl=max(peclettotl,maxval(ekm(2:i1,2:j1,k))*rdt/minval((/dzh(k),dx,dy/))**2)
            peclettotl=max(peclettotl,maxval(ekh(2:i1,2:j1,k))*rdt/minval((/dzh(k),dx,dy/))**2)
         end do
+		!write(6,*) 'myid,myidx,myidy==',myid,myidx,myidy,' and peclettotl=',peclettotl
         call MPI_ALLREDUCE(peclettotl,peclettot,1,MY_REAL,MPI_MAX,comm3d,mpierr)
         dt = min(timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint))
+		!if(myid==0) write(6,*) '--- dt=',dt
+        dt_reason = minloc((/timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint)/),1)
+		!if(myid==0) write(6,*) 'dt_reason=',dt_reason,' and rdt/tres*peclet/peclettot=',rdt/tres*peclet/peclettot
+		!if(myid==0) write(6,*) 'other timesteps: timee=',timee,'dt_lim=',dt_lim,'idtmax=',idtmax,'rdt/tres*courant/courtotmax=',rdt/tres*courant/courtotmax
+		!if(myid==0) write(6,*) 'rdt=',rdt
+		!if(myid==0) write(6,*) 'tres=',tres
+		!if(myid==0) write(6,*) 'peclet=',peclet
+		!if(myid==0) write(6,*) 'peclettot=',peclettot
         rdt = dble(dt)*tres
         timeleft=timeleft-dt
         dt_lim = timeleft
@@ -198,6 +208,7 @@ subroutine tstep_integrate
      sv0 = svm
      e12m = max(e12min,e12m + rk3coef * e12p)
      e120 = e12m
+
   end if
 
   up=0.

@@ -118,11 +118,12 @@ contains
 
 
     use modfields, only : up, vp, wp, um, vm, wm, rhobf,rhobh
-    use modglobal, only : rk3step, i1,j1,kmax,k1, dx,dy,dzf,rdt
-    use modmpi,    only : excj
+    use modglobal, only : rk3step, i1,j1,kmax,k1, dx,dy,dzf,rdt,imax,jmax
+    use modmpi,    only : excj, myid, myidx, myidy
+	use modruralboundary, only : bc_height
     implicit none
     real,allocatable :: pup(:,:,:), pvp(:,:,:), pwp(:,:,:)
-    integer i,j,k
+    integer i,j,k,kmin
     real rk3coef
 
     allocate(pup(2-1:i1+1,2-1:j1+1,k1))
@@ -157,9 +158,44 @@ contains
       end do
     end do
 
+    !do j=2,j1
+    !  do i=2,i1
+	!    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+    !    pwp(i,j,1:kmin) = 0.
+    !    pwp(i,j,k1)     = 0.
+    !    pup(i,j,1:(kmin-1)) = 0.
+    !	pvp(i,j,1:(kmin-1)) = 0.
+	!  end do
+    !end do
+	
+	
+	!if(myid==0) write(6,*) 'in poisson: pup(7,5,2) voor excj',pup(7,5,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(8,5,2) voor excj',pup(8,5,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(9,5,2) voor excj',pup(9,5,2)
+	
+	!if(myid==0) write(6,*) 'in poisson: pup(7,6,2) voor excj',pup(7,6,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(8,6,2) voor excj',pup(8,6,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(9,6,2) voor excj',pup(9,6,2)
+	
+	!if(myid==0) write(6,*) 'in poisson: pup(7,7,2) voor excj',pup(7,7,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(8,7,2) voor excj',pup(8,7,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(9,7,2) voor excj',pup(9,7,2)
+
     call excj( pup, 2-1, i1+1, 2-1, j1+1, 1, k1 )
     call excj( pvp, 2-1, i1+1, 2-1, j1+1, 1, k1 )
     call excj( pwp, 2-1, i1+1, 2-1, j1+1, 1, k1 )
+	
+    !if(myid==0) write(6,*) 'in poisson: pup(7,5,2) na excj',pup(7,5,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(8,5,2) na excj',pup(8,5,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(9,5,2) na excj',pup(9,5,2)
+	
+	!if(myid==0) write(6,*) 'in poisson: pup(7,6,2) na excj',pup(7,6,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(8,6,2) na excj',pup(8,6,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(9,6,2) na excj',pup(9,6,2)
+	
+	!if(myid==0) write(6,*) 'in poisson: pup(7,7,2) na excj',pup(7,7,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(8,7,2) na excj',pup(8,7,2)
+    !if(myid==0) write(6,*) 'in poisson: pup(9,7,2) na excj',pup(9,7,2)
 
     do k=1,kmax
       do j=2,j1
@@ -170,6 +206,18 @@ contains
         end do
       end do
     end do
+	
+    !if(myid==0) write(6,*) 'in poisson: p(7,5,2) na excj',p(7,5,2)
+    !if(myid==0) write(6,*) 'in poisson: p(8,5,2) na excj',p(8,5,2)
+    !if(myid==0) write(6,*) 'in poisson: p(9,5,2) na excj',p(9,5,2)
+	
+	!if(myid==0) write(6,*) 'in poisson: p(7,6,2) na excj',p(7,6,2)
+    !if(myid==0) write(6,*) 'in poisson: p(8,6,2) na excj',p(8,6,2)
+    !if(myid==0) write(6,*) 'in poisson: p(9,6,2) na excj',p(9,6,2)
+	
+	!if(myid==0) write(6,*) 'in poisson: p(7,7,2) na excj',p(7,7,2)
+    !if(myid==0) write(6,*) 'in poisson: p(8,7,2) na excj',p(8,7,2)
+    !if(myid==0) write(6,*) 'in poisson: p(9,7,2) na excj',p(9,7,2)
 
     deallocate( pup,pvp,pwp )
 
@@ -301,6 +349,8 @@ contains
       end do
     end do
 
+    !write(6,*) 'solmpj: voor backward transform p1 at maxloc:',p(6,3,1)
+
     ! Backward FFT
     call fft2db(p,ih,jh)
 
@@ -332,9 +382,10 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-    use modfields, only : up, vp, wp
-    use modglobal, only : i1,j1,kmax,dx,dy,dzh,ih,jh
-    use modmpi,    only : excjs
+    use modfields,    only : up, vp, wp
+    use modglobal,    only : i1,j1,kmax,dx,dy,dzh,ih,jh
+    use modmpi,       only : excjs
+    use modruraldata, only : pres0
     implicit none
     integer i,j,k
 
@@ -363,6 +414,16 @@ contains
     end do
     end do
     end do
+
+    do k=1,kmax
+    do j=2,j1
+    do i=2,i1
+      pres0(i,j,k)=pres0(i,j,k)+p(i,j,k)   ! Pressure correction term 
+    end do
+    end do
+    end do
+
+    call excjs( pres0, 2,i1,2,j1,1,kmax,ih,jh)
 
     return
   end subroutine tderive
