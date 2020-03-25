@@ -100,7 +100,7 @@ program DALES      !Version 4.0.0alpha
 !!----------------------------------------------------------------
 !!     0.0    USE STATEMENTS FOR CORE MODULES
 !!----------------------------------------------------------------
-  use modglobal,         only : rk3step,timeleft, rdt,e12min
+  use modglobal,         only : rk3step,timeleft, rdt,e12min,i1
   use modstartup,        only : startup, writerestartfiles,testwctime,exitmodules
   use modtimedep,        only : timedep
   use modboundary,       only : boundary, grwdamp! JvdD ,tqaver
@@ -346,6 +346,13 @@ program DALES      !Version 4.0.0alpha
       svp(10,21,6,1)=(0.9-svm(10,21,6,1))/rk3coef
       svp(10,22,5,1)=(0.9-svm(10,21,5,1))/rk3coef
       svp(10,22,6,1)=(0.9-svm(10,21,6,1))/rk3coef
+    endif
+	
+	if(myidx==3) then
+      svp(i1  ,:,:,1)=(-1.    *svm(i1  ,:,:,1))/rk3coef
+	  svp(i1-1,:,:,1)=(-0.1   *svm(i1-1,:,:,1))/rk3coef
+	  svp(i1-2,:,:,1)=(-0.001 *svm(i1-2,:,:,1))/rk3coef
+	  svp(i1-3,:,:,1)=(-0.0001*svm(i1-3,:,:,1))/rk3coef
     endif
 	!if(myid==0) write(6,*) 'na applyruralbc u,u,u=',maxval(u0),maxval(um),maxval(up)
     !if(myid==0) write(6,*) 'svp voor tstep_integrate: svp(6,8,10,1)=',svp(6,8,10,1)
