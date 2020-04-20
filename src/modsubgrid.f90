@@ -138,6 +138,7 @@ contains
     use modglobal, only : nsv, lmoist
     use modfields, only : up,vp,wp,e12p,thl0,thlp,qt0,qtp,sv0,svp
     use modsurfdata,only : thlflux,qtflux,svflux
+	use modmpi,     only : myid
     implicit none
     integer n
 
@@ -148,9 +149,11 @@ contains
     if (.not. lsmagorinsky) call diffe(e12p)
     call diffc(thl0,thlp,thlflux)
     if (lmoist) call diffc( qt0, qtp, qtflux)
+	!if(myid==0) write(6,*) 'Scalar before diffc in subgrid',svp(8,9,10,1)
     do n=1,nsv
       call diffc(sv0(:,:,:,n),svp(:,:,:,n),svflux(:,:,n))
     end do
+	!if(myid==0) write(6,*) 'Scalar after diffc in subgrid',svp(8,9,10,1)
     if (.not. lsmagorinsky) call sources
   end subroutine
 
@@ -193,29 +196,32 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal,   only : i1,j1,kmax,k1,ih,jh,i2,j2,delta,ekmin,grav,zf,fkar,deltai, &
-                          dxi,dyi,dzf,dzh
-  use modfields,   only : dthvdz,e120,u0,v0,w0,thvf
-  use modsurfdata, only : dudz,dvdz,z0m
-  use modmpi,      only : excjs
+  use modglobal,     only : i1,j1,kmax,k1,ih,jh,i2,j2,delta,ekmin,grav,zf,fkar,deltai, &
+                          dxi,dyi,dzf,dzh,imax,jmax
+  use modfields,     only : dthvdz,e120,u0,v0,w0,thvf
+  use modsurfdata,   only : dudz,dvdz,z0m
+  use modmpi,        only : excjs,myidx,myidy
+  use modruraldata,  only : applydamping,bc_height
   implicit none
 
   real    :: strain2,mlen
-  integer :: i,j,k,kp,km,jp,jm
+  integer :: i,j,k,kp,km,jp,jm,kmin
 
   if(lsmagorinsky) then
     do k = 1,kmax
       mlen        = csz(k) * delta(k)
+    end do
 
-      do i = 2,i1
-        do j = 2,j1
-
+    do i = 2,i1
+      do j = 2,j1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+        do k=kmin,kmax
           kp=k+1
           km=k-1
           jp=j+1
           jm=j-1
 
-          if(k == 1) then
+          if(k == kmin) then
             strain2 =  ( &
               ((u0(i+1,j,k)-u0(i,j,k))   *dxi        )**2    + &
               ((v0(i,jp,k)-v0(i,j,k))    *dyi        )**2    + &
@@ -278,6 +284,7 @@ contains
           end if
 
           ekm(i,j,k)  = mlen ** 2. * sqrt(2. * strain2)
+          call applydamping(ekm(i,j,k),i,j,k)   !< MK - apply damping function in modruraldata.f90 when it is used.
           ekh(i,j,k)  = ekm(i,j,k) / Prandtl
 
           ekm(i,j,k) = max(ekm(i,j,k),ekmin)
@@ -288,13 +295,15 @@ contains
 
   ! do TKE scheme
   else
-    do k=1,kmax
-      do j=2,j1
-        do i=2,i1
+    do j=2,j1
+      do i=2,i1
+      kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+      do k=kmin,kmax
           if (ldelta .or. (dthvdz(i,j,k)<=0)) then
             zlt(i,j,k) = delta(k)
             if (lmason) zlt(i,j,k) = (1. / zlt(i,j,k) ** nmason + 1. / ( fkar * (zf(k) + z0m(i,j)))**nmason) ** (-1./nmason)
             ekm(i,j,k) = cm * zlt(i,j,k) * e120(i,j,k)
+            call applydamping(ekm(i,j,k),i,j,k)   !< MK - apply damping function in modruraldata.f90 when it is used.
             ekh(i,j,k) = (ch1 + ch2) * ekm(i,j,k)
 
             ekm(i,j,k) = max(ekm(i,j,k),ekmin)
@@ -306,10 +315,11 @@ contains
              if ( grav*abs(dthvdz(i,j,k)) * delta(k)**2 > (cn*e120(i,j,k))**2 * thvf(k) ) then
                 zlt(i,j,k) = cn*e120(i,j,k)/sqrt(grav/thvf(k)*abs(dthvdz(i,j,k)))
              end if
-             
+
             if (lmason) zlt(i,j,k) = (1. / zlt(i,j,k) ** nmason + 1. / ( fkar * (zf(k) + z0m(i,j)))**nmason) ** (-1./nmason)
 
             ekm(i,j,k) = cm * zlt(i,j,k) * e120(i,j,k)
+            call applydamping(ekm(i,j,k),i,j,k)   !< MK - apply damping function in modruraldata.f90 when it is used.
             ekh(i,j,k) = (ch1 + ch2 * zlt(i,j,k)*deltai(k)) * ekm(i,j,k)
 
             ekm(i,j,k) = max(ekm(i,j,k),ekmin)
@@ -360,20 +370,23 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal,   only : i1,j1,kmax,dx,dy,dxi,dyi,dzf,dzh,grav,cu,cv,deltai
-  use modfields,   only : u0,v0,w0,e120,e12p,dthvdz,thvf
+  use modglobal,   only : i1,j1,kmax,delta,dx,dy,dxi,dyi,dzf,dzh,grav,cu,cv,deltai,imax,jmax
+  use modfields,   only : u0,v0,w0,e120,e12p,dthvdz,thvf,e12m
   use modsurfdata,  only : dudz,dvdz,ustar,thlflux
   use modsubgriddata, only: sgs_surface_fix
+  use modruraldata,   only: bc_height
+  use modmpi,         only: myidx,myidy
 
   implicit none
 
   real    tdef2, uwflux, vwflux, local_dudz, local_dvdz, local_dthvdz, horv
-  integer i,j,k,jm,jp,km,kp
+  integer i,j,k,jm,jp,km,kp,kmin
 
 
-  do k=2,kmax
   do j=2,j1
   do i=2,i1
+  kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+  do k=(kmin+1),kmax
     kp=k+1
     km=k-1
     jp=j+1
@@ -420,18 +433,18 @@ contains
 !    sbdiss(i,j,k) = - (ce1 + ce2*zlt(i,j,k)/delta(k)) * e120(i,j,k)**2 /(2.*zlt(i,j,k))
 
 !     e12p(2:i1,2:j1,1) = e12p(2:i1,2:j1,1)+ &
-!            sbshr(2:i1,2:j1,1)+sbbuo(2:i1,2:j1,1)+sbdiss(2:i1,2:j1,1)  
+!            sbshr(2:i1,2:j1,1)+sbbuo(2:i1,2:j1,1)+sbdiss(2:i1,2:j1,1)
     e12p(i,j,k) = e12p(i,j,k) &
                 + (ekm(i,j,k)*tdef2 - ekh(i,j,k)*grav/thvf(k)*dthvdz(i,j,k) ) / (2*e120(i,j,k)) &  !  sbshr and sbbuo
                 - (ce1 + ce2*zlt(i,j,k)*deltai(k)) * e120(i,j,k)**2 /(2.*zlt(i,j,k))               !  sbdiss
-    
+
   end do
   end do
   end do
 !     ----------------------------------------------end i,j,k-loop
 
 !     --------------------------------------------
-!     special treatment for lowest full level: k=1
+!     special treatment for lowest full level: k=kmin
 !     --------------------------------------------
 
 
@@ -439,102 +452,111 @@ contains
     jp=j+1
     jm=j-1
   do i=2,i1
+    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
 
 
 
 ! **  Calculate "shear" production term: tdef2  ****************
 
     tdef2 =  2. * ( &
-            ((u0(i+1,j,1)-u0(i,j,1))*dxi)**2 &
-          + ((v0(i,jp,1)-v0(i,j,1))*dyi)**2 &
-          + ((w0(i,j,2)-w0(i,j,1))/dzf(1))**2   )
+            ((u0(i+1,j,kmin)-u0(i,j,kmin))*dxi)**2 &
+          + ((v0(i,jp,kmin)-v0(i,j,kmin))*dyi)**2 &
+          + ((w0(i,j,kmin+1)-w0(i,j,kmin))/dzf(kmin))**2   )
 
     if (sgs_surface_fix) then
-          ! Use known surface flux and exchange coefficient to derive 
-          ! consistent gradient (such that correct flux will occur in 
+          ! Use known surface flux and exchange coefficient to derive
+          ! consistent gradient (such that correct flux will occur in
           ! shear production term)
           ! Make sure that no division by zero occurs in determination of the
           ! directional component; ekm should already be >= ekmin
           ! Replace the dudz by surface flux -uw / ekm
-          horv = max(sqrt((u0(i,j,1)+cu)**2+(v0(i,j,1)+cv)**2),  0.01)
-          uwflux = -ustar(i,j)*ustar(i,j)* ((u0(i,j,1)+cu)/horv)
-          local_dudz = -uwflux / ekm(i,j,1)
-          tdef2 = tdef2 + ( 0.25*(w0(i+1,j,2)-w0(i-1,j,2))*dxi + &
+          horv = max(sqrt((u0(i,j,kmin)+cu)**2+(v0(i,j,kmin)+cv)**2),  0.01)
+          uwflux = -ustar(i,j)*ustar(i,j)* ((u0(i,j,kmin)+cu)/horv)
+          local_dudz = -uwflux / ekm(i,j,kmin)
+          tdef2 = tdef2 + ( 0.25*(w0(i+1,j,kmin+1)-w0(i-1,j,kmin+1))*dxi + &
                local_dudz )**2
     else
-          tdef2 = tdef2 + ( 0.25*(w0(i+1,j,2)-w0(i-1,j,2))*dxi + &
+          tdef2 = tdef2 + ( 0.25*(w0(i+1,j,kmin+1)-w0(i-1,j,kmin+1))*dxi + &
                                   dudz(i,j)   )**2
     endif
 
     tdef2 = tdef2 +   0.25 *( &
-          ((u0(i,jp,1)-u0(i,j,1))*dyi+(v0(i,jp,1)-v0(i-1,jp,1))*dxi)**2 &
-         +((u0(i,j,1)-u0(i,jm,1))*dyi+(v0(i,j,1)-v0(i-1,j,1))*dxi)**2 &
-         +((u0(i+1,j,1)-u0(i+1,jm,1))*dyi+(v0(i+1,j,1)-v0(i,j,1))*dxi)**2 &
-         +((u0(i+1,jp,1)-u0(i+1,j,1))*dyi+ &
-                                 (v0(i+1,jp,1)-v0(i,jp,1))*dxi)**2   )
+          ((u0(i,jp,kmin)-u0(i,j,kmin))*dyi+(v0(i,jp,kmin)-v0(i-1,jp,kmin))*dxi)**2 &
+         +((u0(i,j,kmin)-u0(i,jm,kmin))*dyi+(v0(i,j,kmin)-v0(i-1,j,kmin))*dxi)**2 &
+         +((u0(i+1,j,kmin)-u0(i+1,jm,kmin))*dyi+(v0(i+1,j,kmin)-v0(i,j,kmin))*dxi)**2 &
+         +((u0(i+1,jp,kmin)-u0(i+1,j,kmin))*dyi+ &
+                                 (v0(i+1,jp,kmin)-v0(i,jp,kmin))*dxi)**2   )
 
     if (sgs_surface_fix) then
-          ! Use known surface flux and exchange coefficient to derive 
-          ! consistent gradient (such that correct flux will occur in 
+          ! Use known surface flux and exchange coefficient to derive
+          ! consistent gradient (such that correct flux will occur in
           ! shear production term)
           ! Make sure that no division by zero occurs in determination of the
           ! directional component; ekm should already be >= ekmin
           ! Replace the dvdz by surface flux -vw / ekm
-          horv = max(sqrt((u0(i,j,1)+cu)**2+(v0(i,j,1)+cv)**2),  0.01)
-          vwflux = -ustar(i,j)*ustar(i,j)* ((v0(i,j,1)+cv)/horv)
-          local_dvdz = -vwflux / ekm(i,j,1)
-          tdef2 = tdef2 + ( 0.25*(w0(i,jp,2)-w0(i,jm,2))*dyi + &
+          horv = max(sqrt((u0(i,j,kmin)+cu)**2+(v0(i,j,kmin)+cv)**2),  0.01)
+          vwflux = -ustar(i,j)*ustar(i,j)* ((v0(i,j,kmin)+cv)/horv)
+          local_dvdz = -vwflux / ekm(i,j,kmin)
+          tdef2 = tdef2 + ( 0.25*(w0(i,jp,kmin+1)-w0(i,jm,kmin+1))*dyi + &
                         local_dvdz  )**2
     else
-         tdef2 = tdef2 + ( 0.25*(w0(i,jp,2)-w0(i,jm,2))*dyi + &
+         tdef2 = tdef2 + ( 0.25*(w0(i,jp,kmin+1)-w0(i,jm,kmin+1))*dyi + &
                                 dvdz(i,j)   )**2
     endif
 
 ! **  Include shear and buoyancy production terms and dissipation **
 
-    sbshr(i,j,1)  = ekm(i,j,1)*tdef2/ ( 2*e120(i,j,1))
+    sbshr(i,j,kmin)  = ekm(i,j,kmin)*tdef2/ ( 2*e120(i,j,kmin))
     if (sgs_surface_fix) then
           ! Replace the -ekh *  dthvdz by the surface flux of thv
           ! (but we only have the thlflux , which seems at the surface to be
           ! equivalent
-          local_dthvdz = -thlflux(i,j)/ekh(i,j,1)
-          sbbuo(i,j,1)  = -ekh(i,j,1)*grav/thvf(1)*local_dthvdz/ ( 2*e120(i,j,1))
+          local_dthvdz = -thlflux(i,j)/ekh(i,j,kmin)
+          sbbuo(i,j,kmin)  = -ekh(i,j,kmin)*grav/thvf(kmin)*local_dthvdz/ ( 2*e120(i,j,kmin))
     else
-          sbbuo(i,j,1)  = -ekh(i,j,1)*grav/thvf(1)*dthvdz(i,j,1)/ ( 2*e120(i,j,1))
+          sbbuo(i,j,kmin)  = -ekh(i,j,kmin)*grav/thvf(kmin)*dthvdz(i,j,kmin)/ ( 2*e120(i,j,kmin))
     endif
-    sbdiss(i,j,1) = - (ce1 + ce2*zlt(i,j,1)*deltai(1)) * e120(i,j,1)**2 /(2.*zlt(i,j,1))
+    sbdiss(i,j,kmin) = - (ce1 + ce2*zlt(i,j,kmin)*deltai(kmin)) * e120(i,j,kmin)**2 /(2.*zlt(i,j,kmin))
+
+  e12p(i,j,kmin) = e12p(i,j,kmin) + &
+            sbshr(i,j,kmin)+sbbuo(i,j,kmin)+sbdiss(i,j,kmin)
+
   end do
   end do
 
 !  e12p(2:i1,2:j1,1:kmax) = e12p(2:i1,2:j1,1:kmax)+ &
 !            sbshr(2:i1,2:j1,1:kmax)+sbbuo(2:i1,2:j1,1:kmax)+sbdiss(2:i1,2:j1,1:kmax)
-  e12p(2:i1,2:j1,1) = e12p(2:i1,2:j1,1) + &
-            sbshr(2:i1,2:j1,1)+sbbuo(2:i1,2:j1,1)+sbdiss(2:i1,2:j1,1)  
+!  e12p(2:i1,2:j1,kmin) = e12p(2:i1,2:j1,kmin) + &
+!            sbshr(2:i1,2:j1,kmin)+sbbuo(2:i1,2:j1,kmin)+sbdiss(2:i1,2:j1,kmin)
 
   return
   end subroutine sources
 
   subroutine diffc (putin,putout,flux)
 
-    use modglobal, only : i1,ih,i2,j1,jh,j2,k1,kmax,dx2i,dzf,dy2i,dzh
+    use modglobal, only : i1,ih,i2,j1,jh,j2,k1,kmax,dx2i,dzf,dy2i,dzh,imax,jmax
     use modfields, only : rhobf,rhobh
+    use modmpi,    only : myidx,myidy,myid
+    use modruraldata, only : bc_height
     implicit none
 
     real, intent(in)    :: putin(2-ih:i1+ih,2-jh:j1+jh,k1)
     real, intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
     real, intent(in)    :: flux (i2,j2)
 
-    integer i,j,k,jm,jp,km,kp
+    integer i,j,k,jm,jp,km,kp,kmin
 
-    do k=2,kmax
-      kp=k+1
-      km=k-1
+    do j=2,j1
+      jp=j+1
+      jm=j-1
 
-      do j=2,j1
-        jp=j+1
-        jm=j-1
+      do i=2,i1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+        do k=(kmin+1),kmax
+          kp=k+1
+          km=k-1
 
-        do i=2,i1
+
           putout(i,j,k) = putout(i,j,k) &
                     +  0.5 * ( &
                   ( (ekh(i+1,j,k)+ekh(i,j,k))*(putin(i+1,j,k)-putin(i,j,k)) &
@@ -556,18 +578,19 @@ contains
 
     do j=2,j1
       do i=2,i1
-
-        putout(i,j,1) = putout(i,j,1) &
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+		!if(myid==0 .and.i==7 .and. j==3) write(6,*) 'kmin = ',kmin
+        putout(i,j,kmin) = putout(i,j,kmin) &
                   + 0.5 * ( &
-                ( (ekh(i+1,j,1)+ekh(i,j,1))*(putin(i+1,j,1)-putin(i,j,1)) &
-                  -(ekh(i,j,1)+ekh(i-1,j,1))*(putin(i,j,1)-putin(i-1,j,1)) )*dx2i &
+                ( (ekh(i+1,j,kmin)+ekh(i,j,kmin))*(putin(i+1,j,kmin)-putin(i,j,kmin)) &
+                  -(ekh(i,j,kmin)+ekh(i-1,j,kmin))*(putin(i,j,kmin)-putin(i-1,j,kmin)) )*dx2i &
                   + &
-                ( (ekh(i,j+1,1)+ekh(i,j,1))*(putin(i,j+1,1)-putin(i,j,1)) &
-                  -(ekh(i,j,1)+ekh(i,j-1,1))*(putin(i,j,1)-putin(i,j-1,1)) )*dy2i &
+                ( (ekh(i,j+1,kmin)+ekh(i,j,kmin))*(putin(i,j+1,kmin)-putin(i,j,kmin)) &
+                  -(ekh(i,j,kmin)+ekh(i,j-1,kmin))*(putin(i,j,kmin)-putin(i,j-1,kmin)) )*dy2i &
                   + &
-                ( rhobh(2)/rhobf(1) * (dzf(2)*ekh(i,j,1) + dzf(1)*ekh(i,j,2)) &
-                  *  (putin(i,j,2)-putin(i,j,1)) / dzh(2)**2 &
-                  + rhobh(1)/rhobf(1)*flux(i,j) *2.                        )/dzf(1) &
+                ( rhobh(kmin+1)/rhobf(kmin) * (dzf(kmin+1)*ekh(i,j,kmin) + dzf(kmin)*ekh(i,j,kmin+1)) &
+                  *  (putin(i,j,kmin+1)-putin(i,j,kmin)) / dzh(kmin+1)**2 &
+                  + rhobh(kmin)/rhobf(kmin)*flux(i,j) *2.                        )/dzf(kmin) &
                           )
 
       end do
@@ -579,22 +602,24 @@ contains
 
   subroutine diffe(putout)
 
-    use modglobal, only : i1,ih,j1,jh,k1,kmax,dx2i,dzf,dy2i,dzh
+    use modglobal, only : i1,ih,j1,jh,k1,kmax,dx2i,dzf,dy2i,dzh,imax,jmax
     use modfields, only : e120,rhobf,rhobh
+    use modmpi,    only : myidx,myidy
+    use modruraldata, only : bc_height
     implicit none
 
     real, intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
-    integer             :: i,j,k,jm,jp,km,kp
+    integer             :: i,j,k,jm,jp,km,kp,kmin
 
-    do k=2,kmax
-      kp=k+1
-      km=k-1
+    do j=2,j1
+      jp=j+1
+      jm=j-1
 
-      do j=2,j1
-        jp=j+1
-        jm=j-1
-
-        do i=2,i1
+      do i=2,i1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+        do k=(kmin+1),kmax
+          kp=k+1
+          km=k-1
 
           putout(i,j,k) = putout(i,j,k) &
                   +  ( &
@@ -615,21 +640,22 @@ contains
     end do
 
   !     --------------------------------------------
-  !     special treatment for lowest full level: k=1
+  !     special treatment for lowest full level: k=kmin
   !     --------------------------------------------
 
     do j=2,j1
       do i=2,i1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
 
-        putout(i,j,1) = putout(i,j,1) + &
-            ( (ekm(i+1,j,1)+ekm(i,j,1))*(e120(i+1,j,1)-e120(i,j,1)) &
-              -(ekm(i,j,1)+ekm(i-1,j,1))*(e120(i,j,1)-e120(i-1,j,1)) )*dx2i &
+        putout(i,j,kmin) = putout(i,j,kmin) + &
+            ( (ekm(i+1,j,kmin)+ekm(i,j,kmin))*(e120(i+1,j,kmin)-e120(i,j,kmin)) &
+              -(ekm(i,j,kmin)+ekm(i-1,j,kmin))*(e120(i,j,kmin)-e120(i-1,j,kmin)) )*dx2i &
             + &
-            ( (ekm(i,j+1,1)+ekm(i,j,1))*(e120(i,j+1,1)-e120(i,j,1)) &
-              -(ekm(i,j,1)+ekm(i,j-1,1))*(e120(i,j,1)-e120(i,j-1,1)) )*dy2i &
+            ( (ekm(i,j+1,kmin)+ekm(i,j,kmin))*(e120(i,j+1,kmin)-e120(i,j,kmin)) &
+              -(ekm(i,j,kmin)+ekm(i,j-1,kmin))*(e120(i,j,kmin)-e120(i,j-1,kmin)) )*dy2i &
             + &
-              ( rhobh(2)/rhobf(1) * (dzf(2)*ekm(i,j,1) + dzf(1)*ekm(i,j,2)) &
-              *  (e120(i,j,2)-e120(i,j,1)) / dzh(2)**2              )/dzf(1)
+              ( rhobh(kmin+1)/rhobf(kmin) * (dzf(kmin+1)*ekm(i,j,kmin) + dzf(kmin)*ekm(i,j,kmin+1)) &
+              *  (e120(i,j,kmin+1)-e120(i,j,kmin)) / dzh(kmin+1)**2              )/dzf(kmin)
 
       end do
     end do
@@ -639,26 +665,28 @@ contains
 
   subroutine diffu (putout)
 
-    use modglobal, only : i1,ih,j1,jh,k1,kmax,dxi,dx2i,dzf,dy,dyi,dzh, cu,cv
+    use modglobal, only : i1,ih,j1,jh,k1,kmax,dxi,dx2i,dzf,dy,dyi,dzh, cu,cv,imax,jmax
     use modfields, only : u0,v0,w0,rhobf,rhobh
     use modsurfdata,only : ustar
+    use modmpi,     only : myidx,myidy
+    use modruraldata, only : bc_height
     implicit none
 
     real, intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
     real                :: emmo,emom,emop,empo
     real                :: fu
     real                :: ucu, upcu
-    integer             :: i,j,k,jm,jp,km,kp
+    integer             :: i,j,k,jm,jp,km,kp,kmin
 
-    do k=2,kmax
-      kp=k+1
-      km=k-1
+    do j=2,j1
+      jp=j+1
+      jm=j-1
 
-      do j=2,j1
-        jp=j+1
-        jm=j-1
-
-        do i=2,i1
+      do i=2,i1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+        do k=kmin+1,kmax
+          kp=k+1
+          km=k-1
 
           emom = ( dzf(km) * ( ekm(i,j,k)  + ekm(i-1,j,k)  )  + &
                       dzf(k)  * ( ekm(i,j,km) + ekm(i-1,j,km) ) ) / &
@@ -694,28 +722,29 @@ contains
       end do
     end do
 
-  !     --------------------------------------------
-  !     special treatment for lowest full level: k=1
-  !     --------------------------------------------
+  !     ------------------------------------------------
+  !     special treatment for lowest full level: k=kmin
+  !     ------------------------------------------------
 
     do j=2,j1
       jp = j+1
       jm = j-1
 
       do i=2,i1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
 
         empo = 0.25 * ( &
-              ekm(i,j,1)+ekm(i,jp,1)+ekm(i-1,jp,1)+ekm(i-1,j,1)  )
+              ekm(i,j,kmin)+ekm(i,jp,kmin)+ekm(i-1,jp,kmin)+ekm(i-1,j,kmin)  )
 
         emmo = 0.25 * ( &
-              ekm(i,j,1)+ekm(i,jm,1)+ekm(i-1,jm,1)+ekm(i-1,j,1)  )
+              ekm(i,j,kmin)+ekm(i,jm,kmin)+ekm(i-1,jm,kmin)+ekm(i-1,j,kmin)  )
 
-        emop = ( dzf(2) * ( ekm(i,j,1) + ekm(i-1,j,1) )  + &
-                    dzf(1) * ( ekm(i,j,2) + ekm(i-1,j,2) ) ) / &
-                  ( 4.   * dzh(2) )
+        emop = ( dzf(kmin+1) * ( ekm(i,j,kmin) + ekm(i-1,j,kmin) )  + &
+                    dzf(kmin) * ( ekm(i,j,kmin+1) + ekm(i-1,j,kmin+1) ) ) / &
+                  ( 4.   * dzh(kmin+1) )
 
 
-        ucu   = 0.5*(u0(i,j,1)+u0(i+1,j,1))+cu
+        ucu   = 0.5*(u0(i,j,kmin)+u0(i+1,j,kmin))+cu
 
         if(ucu >= 0.) then
           upcu  = max(ucu,1.e-10)
@@ -726,21 +755,21 @@ contains
 
         fu = ( 0.5*( ustar(i,j)+ustar(i-1,j) ) )**2  * &
                 upcu/sqrt(upcu**2  + &
-                ((v0(i,j,1)+v0(i-1,j,1)+v0(i,jp,1)+v0(i-1,jp,1))/4.+cv)**2)
+                ((v0(i,j,kmin)+v0(i-1,j,kmin)+v0(i,jp,kmin)+v0(i-1,jp,kmin))/4.+cv)**2)
 
-        putout(i,j,1) = putout(i,j,1) &
+        putout(i,j,kmin) = putout(i,j,kmin) &
                 + &
-              ( ekm(i,j,1)  * (u0(i+1,j,1)-u0(i,j,1)) &
-              -ekm(i-1,j,1)* (u0(i,j,1)-u0(i-1,j,1)) ) * 2. * dx2i &
+              ( ekm(i,j,kmin)  * (u0(i+1,j,kmin)-u0(i,j,kmin)) &
+              -ekm(i-1,j,kmin)* (u0(i,j,kmin)-u0(i-1,j,kmin)) ) * 2. * dx2i &
                 + &
-              ( empo * ( (u0(i,jp,1)-u0(i,j,1))   *dyi &
-                        +(v0(i,jp,1)-v0(i-1,jp,1))*dxi) &
-              -emmo * ( (u0(i,j,1)-u0(i,jm,1))   *dyi &
-                        +(v0(i,j,1)-v0(i-1,j,1))  *dxi)   ) / dy &
+              ( empo * ( (u0(i,jp,kmin)-u0(i,j,kmin))   *dyi &
+                        +(v0(i,jp,kmin)-v0(i-1,jp,kmin))*dxi) &
+              -emmo * ( (u0(i,j,kmin)-u0(i,jm,kmin))   *dyi &
+                        +(v0(i,j,kmin)-v0(i-1,j,kmin))  *dxi)   ) / dy &
                + &
-              ( rhobh(2)/rhobf(1) * emop * ( (u0(i,j,2)-u0(i,j,1))    /dzh(2) &
-                        +(w0(i,j,2)-w0(i-1,j,2))  *dxi) &
-                -rhobh(1)/rhobf(1)*fu   ) / dzf(1)
+              ( rhobh(kmin+1)/rhobf(kmin) * emop * ( (u0(i,j,kmin+1)-u0(i,j,kmin))    /dzh(kmin+1) &
+                        +(w0(i,j,kmin+1)-w0(i-1,j,kmin+1))  *dxi) &
+                -rhobh(kmin)/rhobf(kmin)*fu   ) / dzf(kmin)
 
       end do
     end do
@@ -750,26 +779,28 @@ contains
 
   subroutine diffv (putout)
 
-    use modglobal, only : i1,ih,j1,jh,k1,kmax,dx,dxi,dzf,dyi,dy2i,dzh, cu,cv
+    use modglobal, only : i1,ih,j1,jh,k1,kmax,dx,dxi,dzf,dyi,dy2i,dzh, cu,cv,imax,jmax
     use modfields, only : u0,v0,w0,rhobf,rhobh
     use modsurfdata,only : ustar
+    use modmpi,     only : myidx,myidy
+    use modruraldata, only : bc_height
 
     implicit none
 
     real, intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
     real                :: emmo, eomm,eomp,epmo
     real                :: fv, vcv,vpcv
-    integer             :: i,j,k,jm,jp,km,kp
+    integer             :: i,j,k,jm,jp,km,kp,kmin
 
-    do k=2,kmax
-      kp=k+1
-      km=k-1
+    do j=2,j1
+      jp=j+1
+      jm=j-1
 
-      do j=2,j1
-        jp=j+1
-        jm=j-1
-
-        do i=2,i1
+      do i=2,i1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+        do k=(kmin+1),kmax
+          kp=k+1
+          km=k-1
 
           eomm = ( dzf(km) * ( ekm(i,j,k)  + ekm(i,jm,k)  )  + &
                       dzf(k)  * ( ekm(i,j,km) + ekm(i,jm,km) ) ) / &
@@ -805,26 +836,27 @@ contains
       end do
     end do
 
-  !     --------------------------------------------
-  !     special treatment for lowest full level: k=1
-  !     --------------------------------------------
+  !     -----------------------------------------------
+  !     special treatment for lowest full level: k=kmin
+  !     -----------------------------------------------
 
     do j=2,j1
       jp = j+1
       jm = j-1
       do i=2,i1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
 
         emmo = 0.25 * ( &
-              ekm(i,j,1)+ekm(i,jm,1)+ekm(i-1,jm,1)+ekm(i-1,j,1)  )
+              ekm(i,j,kmin)+ekm(i,jm,kmin)+ekm(i-1,jm,kmin)+ekm(i-1,j,kmin)  )
 
         epmo = 0.25  * ( &
-              ekm(i,j,1)+ekm(i,jm,1)+ekm(i+1,jm,1)+ekm(i+1,j,1)  )
+              ekm(i,j,kmin)+ekm(i,jm,kmin)+ekm(i+1,jm,kmin)+ekm(i+1,j,kmin)  )
 
-        eomp = ( dzf(2) * ( ekm(i,j,1) + ekm(i,jm,1)  )  + &
-                    dzf(1) * ( ekm(i,j,2) + ekm(i,jm,2) ) ) / &
-                  ( 4.   * dzh(2) )
+        eomp = ( dzf(kmin+1) * ( ekm(i,j,kmin) + ekm(i,jm,kmin)  )  + &
+                    dzf(kmin) * ( ekm(i,j,kmin+1) + ekm(i,jm,kmin+1) ) ) / &
+                  ( 4.   * dzh(kmin+1) )
 
-        vcv   = 0.5*(v0(i,j,1)+v0(i,j+1,1))+cv
+        vcv   = 0.5*(v0(i,j,kmin)+v0(i,j+1,kmin))+cv
         if(vcv >= 0.) then
           vpcv  = max(vcv,1.e-10)
         else
@@ -834,21 +866,21 @@ contains
 
         fv    = ( 0.5*( ustar(i,j)+ustar(i,j-1) ) )**2  * &
                     vpcv/sqrt(vpcv**2  + &
-                ((u0(i,j,1)+u0(i+1,j,1)+u0(i,jm,1)+u0(i+1,jm,1))/4.+cu)**2)
+                ((u0(i,j,kmin)+u0(i+1,j,kmin)+u0(i,jm,kmin)+u0(i+1,jm,kmin))/4.+cu)**2)
 
-        putout(i,j,1) = putout(i,j,1) &
+        putout(i,j,kmin) = putout(i,j,kmin) &
                   + &
-                  ( epmo * ( (v0(i+1,j,1)-v0(i,j,1))   *dxi &
-                            +(u0(i+1,j,1)-u0(i+1,jm,1))*dyi) &
-                    -emmo * ( (v0(i,j,1)-v0(i-1,j,1))   *dxi &
-                            +(u0(i,j,1)-u0(i,jm,1))    *dyi)   ) / dx &
+                  ( epmo * ( (v0(i+1,j,kmin)-v0(i,j,kmin))   *dxi &
+                            +(u0(i+1,j,kmin)-u0(i+1,jm,kmin))*dyi) &
+                    -emmo * ( (v0(i,j,kmin)-v0(i-1,j,kmin))   *dxi &
+                            +(u0(i,j,kmin)-u0(i,jm,kmin))    *dyi)   ) / dx &
                   + &
-                ( ekm(i,j,1) * (v0(i,jp,1)-v0(i,j,1)) &
-                  -ekm(i,jm,1)* (v0(i,j,1)-v0(i,jm,1))  ) * 2. * dy2i &
+                ( ekm(i,j,kmin) * (v0(i,jp,kmin)-v0(i,j,kmin)) &
+                  -ekm(i,jm,kmin)* (v0(i,j,kmin)-v0(i,jm,kmin))  ) * 2. * dy2i &
                   + &
-                ( rhobh(2)/rhobf(1) * eomp * ( (v0(i,j,2)-v0(i,j,1))     /dzh(2) &
-                          +(w0(i,j,2)-w0(i,jm,2))    *dyi) &
-                  -rhobh(1)/rhobf(1)*fv   ) / dzf(1)
+                ( rhobh(kmin+1)/rhobf(kmin) * eomp * ( (v0(i,j,kmin+1)-v0(i,j,kmin))     /dzh(kmin+1) &
+                          +(w0(i,j,kmin+1)-w0(i,jm,kmin+1))    *dyi) &
+                  -rhobh(kmin)/rhobf(kmin)*fv   ) / dzf(kmin)
 
       end do
     end do
@@ -859,23 +891,27 @@ contains
 
   subroutine diffw(putout)
 
-    use modglobal, only : i1,ih,j1,jh,k1,kmax,dx,dxi,dy,dyi,dzf,dzh
+    use modglobal, only : i1,ih,j1,jh,k1,kmax,dx,dxi,dy,dyi,dzf,dzh,imax,jmax
     use modfields, only : u0,v0,w0,rhobh,rhobf
+    use modmpi,     only : myidx,myidy
+    use modruraldata, only : bc_height
     implicit none
 
   !*****************************************************************
 
     real, intent(inout) :: putout(2-ih:i1+ih,2-jh:j1+jh,k1)
     real                :: emom, eomm, eopm, epom
-    integer             :: i,j,k,jm,jp,km,kp
+    integer             :: i,j,k,jm,jp,km,kp,kmin
 
-    do k=2,kmax
-      kp=k+1
-      km=k-1
-      do j=2,j1
-        jp=j+1
-        jm=j-1
-        do i=2,i1
+    do j=2,j1
+      jp=j+1
+      jm=j-1
+      do i=2,i1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+
+        do k=(kmin+1),kmax
+          kp=k+1
+          km=k-1
 
           emom = ( dzf(km) * ( ekm(i,j,k)  + ekm(i-1,j,k)  )  + &
                       dzf(k)  * ( ekm(i,j,km) + ekm(i-1,j,km) ) ) / &

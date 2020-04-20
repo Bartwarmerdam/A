@@ -58,11 +58,13 @@ contains
 !! Calculate the liquid water content, do the microphysics, calculate the mean hydrostatic pressure,
 !! calculate the fields at the half levels, and finally calculate the virtual potential temperature.
   subroutine thermodynamics
-    use modglobal, only : lmoist,timee,k1,i1,j1,ih,jh,rd,rv,ijtot,cp,rlv,lnoclouds
+    use modglobal, only : lmoist,timee,k1,i1,j1,ih,jh,rd,rv,ijtot,cp,rlv,lnoclouds,imax,jmax
     use modfields, only : thl0,qt0,ql0,presf,exnf,thvh,thv0h,qt0av,ql0av,thvf,rhof
-    use modmpi, only : slabsum
+    use modmpi, only : slabsum, airslabsum, myidx, myidy
+    use modruralboundary, only : bc_height
     implicit none
-    integer:: k
+    integer:: i,j,k,kmin
+    integer:: Nair(k1)
     if (timee < 0.01) then
       call diagfld
     end if
@@ -79,19 +81,44 @@ contains
     ! recalculate thv and rho on the basis of results
     call calthv
     thvh=0.
-    call slabsum(thvh,1,k1,thv0h,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1) ! redefine halflevel thv using calculated thv
-    thvh = thvh/ijtot
-    thvh(1) = th0av(1)*(1+(rv/rd-1)*qt0av(1)-rv/rd*ql0av(1)) ! override first level
+    ! MK: Calculate the average only over the air cells using airslabsum
+    call airslabsum(thvh,1,k1,thv0h,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair) ! redefine halflevel thv using calculated thv
     do k=1,k1
-      thv0(2:i1,2:j1,k) = (thl0(2:i1,2:j1,k)+rlv*ql0(2:i1,2:j1,k)/(cp*exnf(k))) &
-                 *(1+(rv/rd-1)*qt0(2:i1,2:j1,k)-rv/rd*ql0(2:i1,2:j1,k))
+      thvh(k) = thvh(k)/Nair(k) ! thvh = thvh/ijtot
+    enddo
+    !write(6,*) 'thvh(1) voor = ',thvh(1)
+    !thvh(1) = th0av(1)*(1+(rv/rd-1)*qt0av(1)-rv/rd*ql0av(1)) ! override first level
+    !write(6,*) 'thvh(1) na = ',thvh(1)
+    !do k=1,k1
+    !  thv0(2:i1,2:j1,k) = (thl0(2:i1,2:j1,k)+rlv*ql0(2:i1,2:j1,k)/(cp*exnf(k))) &
+    !             *(1+(rv/rd-1)*qt0(2:i1,2:j1,k)-rv/rd*ql0(2:i1,2:j1,k))
+    !enddo
+    do i=2,i1
+      do j=2,j1
+        kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+        do k=1,k1!kmin,k1
+          thv0(i,j,k) = (thl0(i,j,k)+rlv*ql0(i,j,k)/(cp*exnf(k))) &
+                       *(1+(rv/rd-1)*qt0(i,j,k)-rv/rd*ql0(i,j,k))
+        enddo
+        !do k=1,(kmin-1)  ! set temperature inside the buildings to the slab average
+        !  thv0(i,j,k)=0.5*(thvh(k)+thvh(k+1))
+        !enddo
+      enddo
     enddo
     thvf = 0.0
-    call slabsum(thvf,1,k1,thv0,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
-    thvf = thvf/ijtot
+    call airslabsum(thvf,1,k1,thv0,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair)
     do k=1,k1
+      thvf(k)=thvf(k)/Nair(k) ! thvf = thvf/ijtot
       rhof(k) = presf(k)/(rd*thvf(k)*exnf(k))
     end do
+    !do i=2,i1
+    !  do j=2,j1
+    !    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+    !    do k=1,(kmin-1)  ! set temperature inside the buildings to the slab average
+    !      thv0(i,j,k)=thvf(k)
+    !    enddo
+    !  enddo
+    !enddo
 
   end subroutine thermodynamics
 !> Cleans up after the run
@@ -393,8 +420,6 @@ contains
 !! \author Pier Siebesma   K.N.M.I.     06/01/1995
   subroutine thermo (thl,qt,ql,pressure,exner)
 
-
-
   use modglobal, only : ih,jh,i1,j1,k1,es0,at,bt,rd,rv,rlv,cp,tmelt
   implicit none
 
@@ -404,6 +429,9 @@ contains
   real, intent(out) :: ql(2-ih:i1+ih,2-jh:j1+jh,k1)
   real :: Tnr,qsatur,Tnr_old
   integer :: niter,nitert
+
+  !write(6,*) 'in thermo'
+
     if (lqlnr) then
 
 !mc      calculation of T with Newton-Raphson method
@@ -458,22 +486,27 @@ contains
 !> Calculates liquid water content.and temperature
 !! \author Steef B\"oing
 
-  use modglobal, only : i1,j1,k1,rd,rv,rlv,tup,tdn,cp,ttab,esatltab,esatitab
+  use modglobal, only : i1,j1,k1,rd,rv,rlv,tup,tdn,cp,ttab,esatltab,esatitab,imax,jmax
   use modfields, only : qvsl,qvsi,qt0,thl0,exnf,presf,tmp0,ql0,esl,qsat
+  use modmpi,    only : myidx, myidy
+  use modruraldata, only : bc_height
   implicit none
 
   integer i, j, k
   real :: ilratio, esl1,esi1,qvsl1,qvsi1,qsatur, thlguess, thlguessmin,tlo,thi,ttry
   real :: Tnr,Tnr_old
-  integer :: niter,nitert,tlonr,thinr
+  integer :: niter,nitert,tlonr,thinr,kmin
+
+  !write(6,*) 'in icethermo0'
 
 !     calculation of T with Newton-Raphson method
 !     first guess is Tnr=tl
       nitert = 0
       niter = 0
-      do k=1,k1
       do j=2,j1
       do i=2,i1
+      kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+      do k=kmin,k1
             ! first guess for temperature
             Tnr=exnf(k)*thl0(i,j,k)
             ilratio = max(0.,min(1.,(Tnr-tdn)/(tup-tdn)))
@@ -566,22 +599,27 @@ contains
 !> Calculates liquid water content.and temperature
 !! \author Steef B\"oing
 
-  use modglobal, only : i1,j1,k1,rd,rv,rlv,tup,tdn,cp,ttab,esatltab,esatitab
+  use modglobal, only : i1,j1,k1,rd,rv,rlv,tup,tdn,cp,ttab,esatltab,esatitab,imax,jmax
   use modfields, only : qt0h,thl0h,exnh,presh,ql0h
+  use modmpi,    only : myidx,myidy
+  use modruraldata, only : bc_height
   implicit none
 
   integer i, j, k
   real :: ilratio, esl1, esi1, qvsl1,qvsi1, qsatur, thlguess, thlguessmin,tlo,thi,ttry
   real :: Tnr,Tnr_old
-  integer :: niter,nitert,tlonr,thinr
+  integer :: niter,nitert,tlonr,thinr,kmin
+
+  !write(6,*) 'in icethermoh'
 
 !     calculation of T with Newton-Raphson method
 !     first guess is Tnr=tl
       nitert = 0
       niter = 0
-      do k=1,k1
       do j=2,j1
       do i=2,i1
+      kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+      do k=kmin,k1
             ! first guess for temperature
             Tnr=exnh(k)*thl0h(i,j,k)
             ilratio = max(0.,min(1.,(Tnr-tdn)/(tup-tdn)))
@@ -616,8 +654,8 @@ contains
                 ilratio = max(0.,min(1.,(Tnr-tdn)/(tup-tdn)))
                 tlonr=int((Tnr-150.)*5.)
                 if(tlonr<1 .or.tlonr>1999) then
-                  write(*,*) 'thermo crash: i,j,k,niter,thl0h(i,j,k),qt0h(i,j,k)'
-                  write(*,*) i,j,k,niter,thl0h(i,j,k),qt0h(i,j,k)
+                  !write(*,*) 'thermo crash: i,j,k,niter,thl0h(i,j,k),qt0h(i,j,k)'
+                  !write(*,*) i,j,k,niter,thl0h(i,j,k),qt0h(i,j,k)
                 endif
                 thinr=tlonr+1
                 tlo=ttab(tlonr)
@@ -665,37 +703,48 @@ contains
 !> Calculates the scalars at half levels.
 !! If the kappa advection scheme is active, interpolation needs to be done consistently.
   subroutine calc_halflev
-    use modglobal, only : i1,j1,k1,dzf,dzh,iadv_thl, iadv_qt, iadv_kappa
+    use modglobal, only : i1,j1,k1,dzf,dzh,iadv_thl, iadv_qt, iadv_kappa,imax,jmax
     use modfields, only : thl0,thl0h,qt0,qt0h
     use modsurfdata,only: qts,thls
+    use modmpi, only : myidx, myidy
+    use modruraldata, only: bc_height, thlwall
     implicit none
 
-    integer :: i,j,k
+    integer :: i,j,k,kmin
 
     if (iadv_thl==iadv_kappa) then
       call halflev_kappa(thl0,thl0h)
-    else
-      do  k=2,k1
-        do  j=2,j1
-          do  i=2,i1
+    else !MK: Calculate half level values only outside of the buildings, with setting it to the surface value inside
+      do  j=2,j1
+        do  i=2,i1
+          kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+          do  k = max(2,kmin),k1
             thl0h(i,j,k) = (thl0(i,j,k)*dzf(k-1)+thl0(i,j,k-1)*dzf(k))/(2*dzh(k))
+          end do
+          thl0h(i,j,1) = thls
+          do k=2,(kmin-1)
+            thl0h(i,j,k) = thlwall
           end do
         end do
       end do
     end if
-    thl0h(2:i1,2:j1,1) = thls
+    !thl0h(2:i1,2:j1,1) = thls
 
     if (iadv_qt==iadv_kappa) then
         call halflev_kappa(qt0,qt0h)
-    else
-      do  k=2,k1
-        do  j=2,j1
-          do  i=2,i1
+    else !MK: Calculate hal level values only outside of the buildings, with setting it to the surface value inside
+      do  j=2,j1
+        do  i=2,i1
+          kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+          do  k=max(2,kmin),k1
             qt0h(i,j,k)  = (qt0 (i,j,k)*dzf(k-1)+qt0 (i,j,k-1)*dzf(k))/(2*dzh(k))
+          end do
+          do k=1,(kmin-1)
+            qt0h(i,j,k)  = qts
           end do
         end do
       end do
-      qt0h(2:i1,2:j1,1)  = qts
+      !qt0h(2:i1,2:j1,1)  = qts
     end if
   end subroutine calc_halflev
 

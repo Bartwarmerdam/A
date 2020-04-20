@@ -236,6 +236,7 @@ contains
 !! Set courant number, calculate the grid sizes (both computational and physical), and set the coriolis parameter
   subroutine initglobal
     use modmpi, only : nprocx, nprocy, myid,comm3d, my_real, mpierr
+	use modruraldata, only : imaxb,jmaxb
     implicit none
 
     integer :: advarr(4)
@@ -284,6 +285,8 @@ contains
     ! phsgrid
     imax = itot/nprocx
     jmax = jtot/nprocy
+	imaxb = imax
+	jmaxb = jmax
     i1=imax+1
     j1=jmax+1
     k1=kmax+1

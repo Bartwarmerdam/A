@@ -39,7 +39,7 @@ module modchecksim
 
   ! explanations for dt_limit, determined in tstep_update()
   character (len=15) :: dt_reasons(0:5) = [character(len=15):: "initial step", "timee", "dt_lim" , "idtmax", "velocity", "diffusion"]
-  
+
   save
 contains
 !> Initializing Checksim. Read out the namelist, initializing the variables
@@ -162,25 +162,27 @@ contains
 !> Checks local and total divergence
   subroutine chkdiv
 
-    use modglobal, only : i1,j1,kmax,dx,dy,dzf,dt_reason
+    use modglobal, only : i1,j1,kmax,dx,dy,dzf,dt_reason,imax,jmax
     use modfields, only : u0,v0,w0,rhobf,rhobh
-    use modmpi,    only : myid,comm3d,mpi_sum,mpi_max,my_real,mpierr
+    use modmpi,    only : myid,comm3d,mpi_sum,mpi_max,my_real,mpierr,myidx,myidy
+    use modruraldata, only : bc_height
     implicit none
 
 
 
     real div, divmax, divtot
     real divmaxl, divtotl
-    integer i, j, k
+    integer i, j, k, kmin
 
     divmax = 0.
     divtot = 0.
     divmaxl= 0.
     divtotl= 0.
 
-    do k=1,kmax
     do j=2,j1
     do i=2,i1
+    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+    do k=kmin,kmax
        div = &
                 rhobf(k) * (u0(i+1,j,k) - u0(i,j,k) )/dx + &
                 rhobf(k) * (v0(i,j+1,k) - v0(i,j,k) )/dy + &

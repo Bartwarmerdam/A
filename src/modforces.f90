@@ -60,25 +60,28 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal, only : i1,j1,kmax,dzh,dzf,grav, lpressgrad
+  use modglobal, only : i1,j1,kmax,dzh,dzf,grav, lpressgrad,imax,jmax
   use modfields, only : sv0,up,vp,wp,thv0h,dpdxl,dpdyl,thvh
   use moduser,   only : force_user
   use modmicrodata, only : imicro, imicro_bulk, imicro_bin, imicro_sice,iqr
+  use modmpi,    only : myidx,myidy	
+  use modruralboundary, only : bc_height
   implicit none
 
-  integer i, j, k, jm, jp, km, kp
+  integer i, j, k, jm, jp, km, kp, kmin
 
   if (lforce_user) call force_user
 
   if((imicro==imicro_sice).or.(imicro==imicro_bulk).or.(imicro==imicro_bin)) then
-    do k=2,kmax
-      kp=k+1
-      km=k-1
     do j=2,j1
       jp=j+1
       jm=j-1
     do i=2,i1
-    
+      kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1	
+    do k=(kmin+1),kmax	
+      kp=k+1	
+      km=k-1	
+
     if (lpressgrad) then
       up(i,j,k) = up(i,j,k) - dpdxl(k)      !RN LS pressure gradient force in x,y directions;
       vp(i,j,k) = vp(i,j,k) - dpdyl(k)
@@ -89,13 +92,14 @@ contains
     end do
     end do
   else
-    do k=2,kmax
-      kp=k+1
-      km=k-1
     do j=2,j1
       jp=j+1
       jm=j-1
     do i=2,i1
+      kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
+    do k=(kmin+1),kmax
+      kp=k+1
+      km=k-1
       up(i,j,k) = up(i,j,k) - dpdxl(k)
       vp(i,j,k) = vp(i,j,k) - dpdyl(k)
       wp(i,j,k) = wp(i,j,k) + grav*(thv0h(i,j,k)-thvh(k))/thvh(k)
@@ -104,21 +108,22 @@ contains
     end do
   end if
 
-!     --------------------------------------------
-!     special treatment for lowest full level: k=1
-!     --------------------------------------------
+!     -----------------------------------------------
+!     special treatment for lowest full level: k=kmin
+!     -----------------------------------------------
 
   do j=2,j1
     jp = j+1
     jm = j-1
   do i=2,i1
+    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
 
     if (lpressgrad) then
-      up(i,j,1) = up(i,j,1) - dpdxl(1)
-      vp(i,j,1) = vp(i,j,1) - dpdyl(1)
+      up(i,j,kmin) = up(i,j,kmin) - dpdxl(kmin)
+      vp(i,j,kmin) = vp(i,j,kmin) - dpdyl(kmin)
     end if
 
-    wp(i,j,1) = 0.0
+    wp(i,j,kmin) = 0.0
 
   end do
   end do
@@ -145,21 +150,24 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal, only : i1,j1,kmax,dzh,dzf,cu,cv,om22,om23,lcoriol
-  use modfields, only : u0,v0,w0,up,vp,wp
+  use modglobal,    only : i1,j1,kmax,dzh,dzf,cu,cv,om22,om23,lcoriol,imax,jmax
+  use modfields,    only : u0,v0,w0,up,vp,wp
+  use modruraldata, only : bc_height	
+  use modmpi,       only : myidx, myidy
   implicit none
 
-  integer i, j, k, jm, jp, km, kp
+  integer i, j, k, jm, jp, km, kp, kmin
 
   if (lcoriol .eqv. .false.) return
   
-  do k=2,kmax
-    kp=k+1
-    km=k-1
   do j=2,j1
     jp=j+1
     jm=j-1
   do i=2,i1
+    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1	
+  do k=(kmin+1),kmax	
+    kp=k+1	
+    km=k-1
 
     up(i,j,k) = up(i,j,k)+ cv*om23 &
           +(v0(i,j,k)+v0(i,jp,k)+v0(i-1,j,k)+v0(i-1,jp,k))*om23*0.25 &
@@ -173,28 +181,30 @@ contains
                 +    dzf(k)  * (u0(i,j,km) + u0(i+1,j,km))  ) / dzh(k) ) &
                 * om22*0.25
   end do
-  end do
-!     -------------------------------------------end i&j-loop
-  end do
 !     -------------------------------------------end k-loop
 
-!     --------------------------------------------
-!     special treatment for lowest full level: k=1
-!     --------------------------------------------
+  end do
+  end do
+!     -------------------------------------------end i&j-loop
+
+!     -----------------------------------------------
+!     special treatment for lowest full level: k=kmin
+!     -----------------------------------------------
 
   do j=2,j1
     jp = j+1
     jm = j-1
   do i=2,i1
+    kmin=bc_height(i+myidx*imax,j+myidy*jmax)+1
 
-    up(i,j,1) = up(i,j,1)  + cv*om23 &
-          +(v0(i,j,1)+v0(i,jp,1)+v0(i-1,j,1)+v0(i-1,jp,1))*om23*0.25 &
-          -(w0(i,j,1)+w0(i,j ,2)+w0(i-1,j,2)+w0(i-1,j ,1))*om22*0.25
+    up(i,j,kmin) = up(i,j,kmin)  + cv*om23 &
+          +(v0(i,j,kmin)+v0(i,jp,kmin)+v0(i-1,j,kmin)+v0(i-1,jp,kmin))*om23*0.25 &
+          -(w0(i,j,kmin)+w0(i,j ,kmin+1)+w0(i-1,j,kmin+1)+w0(i-1,j ,kmin))*om22*0.25
 
-    vp(i,j,1) = vp(i,j,1) - cu*om23 &
-          -(u0(i,j,1)+u0(i,jm,1)+u0(i+1,jm,1)+u0(i+1,j,1))*om23*0.25
+    vp(i,j,kmin) = vp(i,j,kmin) - cu*om23 &
+          -(u0(i,j,kmin)+u0(i,jm,kmin)+u0(i+1,jm,kmin)+u0(i+1,j,kmin))*om23*0.25
 
-    wp(i,j,1) = 0.0
+    wp(i,j,kmin) = 0.0
 
   end do
   end do
@@ -225,14 +235,16 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal, only : i1,j1,kmax,dzh,nsv,lmomsubs
+  use modglobal, only : i1,j1,kmax,dzh,nsv,lmomsubs,imax,jmax
   use modfields, only : up,vp,thlp,qtp,svp,&
                         whls, u0av,v0av,thl0,qt0,sv0,u0,v0,&
                         dudxls,dudyls,dvdxls,dvdyls,dthldxls,dthldyls,dqtdxls,dqtdyls, &
                         dqtdtls, dthldtls, dudtls, dvdtls
+  use modmpi,    only : myid, myidx, myidy
+  use modruraldata, only: bc_height
   implicit none
 
-  integer i,j,k,n,kp,km
+  integer i,j,k,n,kp,km, kmin
   real subs_thl,subs_qt,subs_sv,subs_u,subs_v
 
 !     1. DETERMINE LARGE SCALE TENDENCIES
@@ -245,36 +257,43 @@ contains
   subs_sv  = 0.
   subs_u   = 0.
   subs_v   = 0.
+  
+  !if(myid==0) write(6,*) 'lstend lowest level voor: svp(7,8,10,1)=',svp(7,8,10,1)
 
   do j=2,j1
     do i=2,i1
-      k = 1
-      if (whls(2).lt.0) then !neglect effect of mean ascending on tendencies at the lowest full level
-        subs_thl     = 0.5*whls(2)  *(thl0(i,j,2)-thl0(i,j,1))/dzh(2)
-        subs_qt      = 0.5*whls(2)  *(qt0(i,j,2)-qt0(i,j,1) )/dzh(2)
+      kmin = bc_height(i+myidx*imax,j+myidy*jmax)+1
+      if (whls(kmin+1).lt.0) then !neglect effect of mean ascending on tendencies at the lowest full level
+        subs_thl     = 0.5*whls(kmin+1)  *(thl0(i,j,kmin+1)-thl0(i,j,kmin))/dzh(kmin+1)
+        subs_qt      = 0.5*whls(kmin+1)  *(qt0(i,j,kmin+1)-qt0(i,j,kmin) )/dzh(kmin+1)
         if (lmomsubs) then
-          subs_u     = 0.5*whls(2)  *(u0(i,j,2)-u0(i,j,1))/dzh(2)
-          subs_v     = 0.5*whls(2)  *(v0(i,j,2)-v0(i,j,1))/dzh(2)
+          subs_u     = 0.5*whls(kmin+1)  *(u0(i,j,kmin+1)-u0(i,j,kmin))/dzh(kmin+1)
+          subs_v     = 0.5*whls(kmin+1)  *(v0(i,j,kmin+1)-v0(i,j,kmin))/dzh(kmin+1)
         endif
         do n=1,nsv
-          subs_sv =  0.5*whls(2)  *(sv0(i,j,2,n)-sv0(i,j,1,n)  )/dzh(2)
-          svp(i,j,1,n) = svp(i,j,1,n)-subs_sv
+          subs_sv =  0.5*whls(kmin+1)  *(sv0(i,j,kmin+1,n)-sv0(i,j,kmin,n)  )/dzh(kmin+1)
+          svp(i,j,kmin,n) = svp(i,j,kmin,n)-subs_sv
         enddo
       endif
-      thlp(i,j,1) = thlp(i,j,1) -u0av(1)*dthldxls(1)-v0av(1)*dthldyls(1)-subs_thl + dthldtls(1)
-      qtp(i,j,1)  = qtp (i,j,1) -u0av(1)*dqtdxls (1)-v0av(1)*dqtdyls (1)-subs_qt  + dqtdtls(1)
-      up  (i,j,1) = up  (i,j,1) -u0av(1)*dudxls  (1)-v0av(1)*dudyls  (1)-subs_u   + dudtls(1)
-      vp  (i,j,1) = vp  (i,j,1) -u0av(1)*dvdxls  (1)-v0av(1)*dvdyls  (1)-subs_v   + dvdtls(1)
+      thlp(i,j,kmin) = thlp(i,j,kmin) -u0av(kmin)*dthldxls(kmin)-v0av(kmin)*dthldyls(kmin)-subs_thl + dthldtls(kmin)
+      qtp (i,j,kmin) = qtp (i,j,kmin) -u0av(kmin)*dqtdxls (kmin)-v0av(kmin)*dqtdyls (kmin)-subs_qt  + dqtdtls (kmin)
+      up  (i,j,kmin) = up  (i,j,kmin) -u0av(kmin)*dudxls  (kmin)-v0av(kmin)*dudyls  (kmin)-subs_u   + dudtls  (kmin)
+      vp  (i,j,kmin) = vp  (i,j,kmin) -u0av(kmin)*dvdxls  (kmin)-v0av(kmin)*dvdyls  (kmin)-subs_v   + dvdtls  (kmin)
     end do
   end do
+  
+  !if(myid==0) write(6,*) 'lstend lowest level na: svp(7,8,10,1)=',svp(7,8,10,1)
 
 !     1.2 other model levels twostream
 
-  do k=2,kmax
-    kp=k+1
-    km=k-1
-    do j=2,j1
-      do i=2,i1
+  !if(myid==0) write(6,*) 'lstend voor: svp(7,8,10,1)=',svp(7,8,10,1)
+  do j=2,j1
+    do i=2,i1
+      kmin = bc_height(i+myidx*imax,j+myidy*jmax)+1
+	  do k=(kmin+1),kmax
+        kp=k+1
+        km=k-1
+
         if (whls(kp).lt.0) then   !downwind scheme for subsidence
           subs_thl    = whls(kp) * (thl0(i,j,kp) - thl0(i,j,k))/dzh(kp)
           subs_qt     = whls(kp) * (qt0 (i,j,kp) - qt0 (i,j,k))/dzh(kp)
@@ -307,6 +326,7 @@ contains
       enddo
     enddo
   enddo
+  !if(myid==0) write(6,*) 'na: svp(7,8,10,1)=',svp(7,8,10,1)
 
   return
   end subroutine lstend

@@ -100,8 +100,8 @@ program DALES
 !!----------------------------------------------------------------
 !!     0.0    USE STATEMENTS FOR CORE MODULES
 !!----------------------------------------------------------------
-  use modglobal,         only : rk3step,timeleft
-  use modmpi,            only : initmpicomm
+  use modglobal,         only : rk3step,timeleft, rdt,e12min,i1
+  use modmpi,            only : initmpicomm,myid,myidx,myidy
   use modstartup,        only : startup, writerestartfiles,testwctime,exitmodules
   use modtimedep,        only : timedep
   use modboundary,       only : boundary, grwdamp! JvdD ,tqaver
@@ -111,7 +111,7 @@ program DALES
   use modsubgrid,        only : subgrid
   use modforces,         only : forces, coriolis, lstend
   use modradiation,      only : radiation
-  use modpois,           only : poisson
+  use modpois,           only : poisson, p
   use tstep,             only : tstep_update,  tstep_integrate
   !use modedgecold,       only : coldedge
 
@@ -150,9 +150,15 @@ program DALES
   !use modprojection,   only : initprojection, projection
   use modchem,         only : initchem,twostep
   use modcanopy,       only : initcanopy, canopy, exitcanopy
+  use modruralboundary,   only : applyruralboundary, exitruralboundary ! MK
 
+  ! Use to create a point source for scalar 1
+  use modfields,       only : svp,svm,u0,um,up,sv0,thlp,e12m,e12p,thlm,e12prof
+  
+  use modsurfdata,     only : thls
 
   implicit none
+  real rk3coef
 
 !----------------------------------------------------------------
 !     1      READ NAMELISTS,INITIALISE GRID, CONSTANTS AND FIELDS
@@ -161,6 +167,7 @@ program DALES
   ! call initmpi initmpi depends on options in the namelist, call moved to startup
   call initmpicomm
   call startup
+  !if(myid==0) write(6,*) 'na startup u,u,u=',maxval(u0),maxval(um),maxval(up)
 
 !---------------------------------------------------------
 !      2     INITIALIZE STATISTICAL ROUTINES AND ADD-ONS
@@ -192,18 +199,25 @@ program DALES
 
   !call initspectra2
   call initcape
-
+  !if(myid==0) write(6,*) 'na initcape u,u,u=',maxval(u0),maxval(um),maxval(up)
+  !write(6,*) 'na initcape p1 at maxloc:',p(6,3,1)
 
 !------------------------------------------------------
 !   3.0   MAIN TIME LOOP
 !------------------------------------------------------
   call testwctime
+  
 
   do while (timeleft>0 .or. rk3step < 3)
     call tstep_update                           ! Calculate new timestep
-    call timedep
+    !write(6,*) 'timeleft = ',timeleft
+    !if(myid==0) write(6,*) 'Scalar start',svp(5,9,1,1)
+	!if(myid==0) write(6,*) 'up start',up(5,2,2)
+    !if(myid==0) write(6,*) 'svp start: svp(6,8,10,1)=',svp(6,8,10,1)
+    !if(myid==0) write(6,*) 'start of loop p1 at maxloc:',p(6,3,1)
+	!if((myidx==0 .or. myidx==1) .and. myidy==0) write(6,*) 'myidx=',myidx,'e12m, e12p,e12min,e12prof(1) start',e12m(45,30,1),e12p(45,30,1),e12min,e12prof(1)
+	call timedep
     call samptend(tend_start,firstterm=.true.)
-
 !-----------------------------------------------------
 !   3.1   RADIATION
 !-----------------------------------------------------
@@ -213,15 +227,49 @@ program DALES
 !-----------------------------------------------------
 !   3.2   THE SURFACE LAYER
 !-----------------------------------------------------
+    !if(myid==0) write(6,*) 'svp voor surface: svp(5,9,1,1)=',svp(5,9,1,1)
+	!if(myid==0) write(6,*) 'voor surface thls=',thls
+	!if(myid==28) write(6,*) 'e12m, e12p voor surface',e12m(11,23,2),e12p(11,23,2)
+	!if(myid==0) write(6,*) 'qtp voor surface',qtp(7,3,10)
+    !if(myid==0) write(6,*) 'thltp voor surface',thlp(6,2,11)
+	!if(myidx==3 .and. myidy==3) write(6,*) 'thlm, thlp voor surface',thlm(10,32,1),thlp(10,32,1)
     call surface
 
 !-----------------------------------------------------
 !   3.3   ADVECTION AND DIFFUSION
 !-----------------------------------------------------
-    call advection
+    !if(myid==0) write(6,*) 'svp voor advection: svp(6,8,10,1)=',svp(6,8,10,1)
+	!if(myid==0) write(6,*) 'na surface thls=',thls
+    !if(myid==0) write(6,*) 'e12m voor advection',e12m(8,3,5)
+	!if(myid==0) write(6,*) 'qtp voor advection',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'thltp voor advection',thlp(6,2,11)
+	!if(myid==28) write(6,*) 'e12m, e12p voor advection',e12m(11,23,2),e12p(11,23,2)
+	!if(myidx==3 .and. myidy==3) write(6,*) 'thlm, thlp voor advection',thlm(10,32,1),thlp(10,32,1)
+	!if((myidx==0 .or. myidx==1) .and. myidy==0) write(6,*) 'myidx=',myidx,'e12m, e12p,e12min,e12prof(1) voor advec',e12m(45,30,1),e12p(45,30,1),e12min,e12prof(1)
+	call advection
+	!if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp na advection: svp(30,9,9,1)=',svp(30,9,9,1)
+    !if(myid==0) write(6,*) 'svp na advection: svp(6,8,10,1)=',svp(6,8,10,1)
+	!if(myid==0) write(6,*) 'e12m na advection',e12m(8,3,5)
+	!if(myid==0) write(6,*) 'qtp na advection',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'thltp na advection',thlp(6,2,11)
+	!if(myidx==3 .and. myidy==3) write(6,*) 'thlm, thlp na advection',thlm(10,32,1),thlp(10,32,1)
+	!if((myidx==0 .or. myidx==1) .and. myidy==0) write(6,*) 'myidx=',myidx,'e12m, e12p,e12min,e12prof(1) na advec',e12m(45,30,1),e12p(45,30,1),e12min,e12prof(1)
     call samptend(tend_adv)
+    !if(myid==0) write(6,*) 'svp voor subgrid: svp(5,9,1,1)=',svp(5,9,1,1)
+	!if(myid==0) write(6,*) 'qtp voor subgrid',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'thltp voor subgrid',thlp(6,2,11)
+	!if(myid==0) write(6,*) 'up voor subgrid',up(8,6,2)
+	!if(myid==28) write(6,*) 'e12m, e12p voor subgrid',e12m(11,23,2),e12p(11,23,2)
     call subgrid
-    call canopy
+	!if(myid==0) write(6,*) 'thltp na subgrid',thlp(6,2,11)
+	!if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp na subgrid: svp(30,9,9,1)=',svp(30,9,9,1)
+	!if(myid==0) write(6,*) 'qtp na subgrid',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'e12m na subgrid',e12m(8,3,5)
+    !if(myid==0) write(6,*) 'svp na subgrid: svp(5,9,1,1)=',svp(5,9,1,1)
+	!if(myid==1) write(6,*) 'up na subgrid',up(5,2,2)
+	!if(myidx==3 .and. myidy==3) write(6,*) 'thlm, thlp na subgrid',thlm(10,32,1),thlp(10,32,1)
+    !if((myidx==0 .or. myidx==1) .and. myidy==0) write(6,*) 'myidx=',myidx,'e12m, e12p,e12min,e12prof(1) na subgrid',e12m(45,30,1),e12p(45,30,1),e12min,e12prof(1)
+	call canopy
     call samptend(tend_subg)
 
 !-----------------------------------------------------
@@ -229,13 +277,19 @@ program DALES
 !-----------------------------------------------------
     call coriolis !remaining terms of ns equation
     call samptend(tend_coriolis)
+	!if(myid==0) write(6,*) 'qtp voor forces',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'up voor forces',up(8,6,2)
+	!if(myid==28) write(6,*) 'e12m, e12p voor forces',e12m(11,23,2),e12p(11,23,2)
     call forces !remaining terms of ns equation
+	!if(myid==0) write(6,*) 'qtp na forces',qtp(7,3,10)
     call samptend(tend_force)
 
     call lstend !large scale forcings
+	!if(myid==0) write(6,*) 'qtp na lstend',qtp(7,3,10)
     call samptend(tend_ls)
     call microsources !Drizzle etc.
     call samptend(tend_micro)
+	!if(myid==0) write(6,*) 'thltp na remaining terms',thlp(6,2,11)
 
 !------------------------------------------------------
 !   3.4   EXECUTE ADD ONS
@@ -246,24 +300,77 @@ program DALES
 !    call tiltedgravity
 
     call samptend(tend_addon)
+    !if(myid==0) write(6,*) 'qtp na samptend tendaddon',qtp(7,3,10)
 
 !-----------------------------------------------------------------------
 !   3.5  PRESSURE FLUCTUATIONS, TIME INTEGRATION AND BOUNDARY CONDITIONS
 !-----------------------------------------------------------------------
     call grwdamp !damping at top of the model
+	!if(myid==0) write(6,*) 'na grwdamp u,u,u=',maxval(u0),maxval(um),maxval(up)
+	!write(6,*) 'na grwdamp p1 at maxloc:',p(6,3,1)
+	!if(myid==0) write(6,*) 'qtp na grwdamp',qtp(7,3,10)
 !JvdD    call tqaver !set thl, qt and sv(n) equal to slab average at level kmax
     call samptend(tend_topbound)
+	!if(myid==0) write(6,*) 'na samptend u,u,u=',maxval(u0),maxval(um),maxval(up)
+	!write(6,*) 'p1 voor poissson at maxloc:',p(6,3,1)
+	!if(myid==0) write(6,*) 'qtp voor poisson',qtp(7,3,10)
+	!if(myid==1) write(6,*) 'up voor poisson',up(5,2,2)
     call poisson
+	!if(myid==1) write(6,*) 'up na poisson',up(5,2,2)
+	!write(6,*) 'p1 na poisson at maxloc:',p(6,3,1)
+	!if(myid==0) write(6,*) 'na poisson u,u,u=',maxval(u0),maxval(um),maxval(up)
     call samptend(tend_pois,lastterm=.true.)
-
-    call tstep_integrate                        ! Apply tendencies to all variables
+	!if(myid==0) write(6,*) 'na samptend2 u,u,u=',maxval(u0),maxval(um),maxval(up)
+	!if(myid==0) write(6,*) 'e12m voor applyruralboundary',e12m(8,3,5)
+    !if(myid==0) write(6,*) 'Scalar before applyruralbc',svp(5,9,1,1)
+	!if(myid==0) write(6,*) 'qtp voor ruralbc',qtp(7,3,10)
+	!if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp voor ruralboundary: svp(30,9,9,1)=',svp(30,9,9,1)
+    !if(myid==0) write(6,*) 'thltp voor ruralbc',thlp(6,2,11)
+	!if(myid==0) write(6,*) 'up voor ruralboundary',up(8,6,2)
+	!if(myid==28) write(6,*) 'e12m, e12p voor apply ruralbc',e12m(11,23,2),e12p(11,23,2)
+	!if(myidx==3 .and. myidy==3) write(6,*) 'thlm, thlp na apply ruralbc',thlm(10,32,1),thlp(10,32,1)
+	!if((myidx==0 .or. myidx==1) .and. myidy==0) write(6,*) 'myidx=',myidx,'e12m, e12p,e12min,e12prof(1) voor ruralbc',e12m(45,30,1),e12p(45,30,1),e12min,e12prof(1)
+	call applyruralboundary
+	!if((myidx==0 .or. myidx==1) .and. myidy==0) write(6,*) 'myidx=',myidx,'e12m, e12p,e12min,e12prof(1) na ruralbc',e12m(45,30,1),e12p(45,30,1),e12min,e12prof(1)
+	!if(myidx==3 .and. myidy==3) write(6,*) 'thlm, thlp na apply ruralbc',thlm(10,32,1),thlp(10,32,1)
+	!if(myid==28) write(6,*) 'e12m, e12p na apply ruralbc',e12m(11,23,2),e12p(11,23,2)
+    !if(myid==0) write(6,*) 'thltp na ruralbc',thlp(6,2,11)
+	! MK Apply Immersed Boundary Method for the rural boundary
+    !if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp voor ruralboundary: svp(30,9,9,1)=',svp(30,9,9,1)
+    !if(myid==0) write(6,*) 'qtp na ruralbc',qtp(7,3,10)
+	!if(myid==0) write(6,*) 'e12m na applyruralboundary',e12m(8,3,5)
+	!if(myid==0) write(6,*) 'Scalar after applyruralbc',svp(5,9,1,1)
+    rk3coef=rdt/(4.-dble(rk3step))
+    if(myidx==0 ) then
+      svp(10,20,5,1)=(0.9-svm(10,20,5,1))/rk3coef
+      svp(10,20,6,1)=(0.9-svm(10,20,6,1))/rk3coef
+      svp(10,21,5,1)=(0.9-svm(10,21,5,1))/rk3coef
+      svp(10,21,6,1)=(0.9-svm(10,21,6,1))/rk3coef
+      svp(10,22,5,1)=(0.9-svm(10,21,5,1))/rk3coef
+      svp(10,22,6,1)=(0.9-svm(10,21,6,1))/rk3coef
+    endif
+	
+	if(myidx==3) then
+      svp(i1  ,:,:,1)=(-1.    *svm(i1  ,:,:,1))/rk3coef
+	  svp(i1-1,:,:,1)=(-0.1   *svm(i1-1,:,:,1))/rk3coef
+	  svp(i1-2,:,:,1)=(-0.001 *svm(i1-2,:,:,1))/rk3coef
+	  svp(i1-3,:,:,1)=(-0.0001*svm(i1-3,:,:,1))/rk3coef
+    endif
+	!if(myid==0) write(6,*) 'na applyruralbc u,u,u=',maxval(u0),maxval(um),maxval(up)
+    !if(myid==0) write(6,*) 'svp voor tstep_integrate: svp(6,8,10,1)=',svp(6,8,10,1)
+	!if(myid==1) write(6,*) 'up na ruralboundary',up(5,2,2)
+	call tstep_integrate                        ! Apply tendencies to all variables
     call boundary
     !call tiltedboundary
 !-----------------------------------------------------
 !   3.6   LIQUID WATER CONTENT AND DIAGNOSTIC FIELDS
 !-----------------------------------------------------
+    !if(myid==0) write(6,*) 'na boundary u,u,u=',maxval(u0),maxval(um),maxval(up)
     call thermodynamics
+	!if(myid==0) write(6,*) 'thltp na thermodynamics',thlp(6,2,11)
+	!if(myid==0) write(6,*) 'na thermodynamics u,u,u=',maxval(u0),maxval(um),maxval(up)
     call leibniztend
+	!if(myid==0) write(6,*) 'qtp voor surface',qtp(7,3,10)
 !-----------------------------------------------------
 !   3.7  WRITE RESTARTFILES AND DO STATISTICS
 !------------------------------------------------------
@@ -293,6 +400,15 @@ program DALES
 
     call testwctime
     call writerestartfiles
+	
+	!if(myid==28) write(6,*) 'e12m, e12p at the end of the loop',e12m(11,23,2),e12p(11,23,2)
+	!if(myidx==3 .and. myidy==3) write(6,*) 'thlm, thlp at the end of the loop',thlm(10,32,1),thlp(10,32,1)
+	!if(myid==0 .and. sv0(30,9,9,1)>1) write(6,*) 'svp at the end of the loop: svp(30,9,9,1)=',svp(30,9,9,1)
+    !if(myid==0) write(6,*) 'thltp at the end of the loop',thlp(6,2,11)
+    !if(myid==0) write(6,*) 'Scalar at the end of the loop',svp(5,9,1,1)
+	!if(myid==0) write(6,*) 'e12m at the end of the loop',e12m(8,3,5)
+	!if(myid==0) write(6,*) 'qtp at the end of the loop',qtp(7,3,10)
+	!if((myidx==0 .or. myidx==1) .and. myidy==0) write(6,*) 'myidx=',myidx,'e12m, e12p,e12min,e12prof(1) at the end of the loop',e12m(45,30,1),e12p(45,30,1),e12min,e12prof(1)
 
   end do
 
@@ -323,6 +439,7 @@ program DALES
   call exitfielddump
   call exitheterostats
   call exitcanopy
+  call exitruralboundary           !MK
   call exitmodules
 
 end program DALES

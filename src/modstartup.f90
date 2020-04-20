@@ -76,11 +76,12 @@ contains
     use modthermodynamics, only : initthermodynamics,lqlnr, chi_half
     use modmicrophysics,   only : initmicrophysics
     use modsubgrid,        only : initsubgrid
+    use modruralboundary,  only : initruralboundary
     use mpi,               only : MPI_INTEGER,MPI_LOGICAL,MPI_CHARACTER
     use modmpi,            only : initmpi,commwrld,my_real,myid,nprocx,nprocy,mpierr
     use modchem,           only : initchem
     use modversion,        only : git_version
-    
+
     implicit none
     integer :: ierr
     character(256), optional, intent(in) :: path
@@ -259,9 +260,12 @@ contains
     
     call testwctime
     ! Allocate and initialize core modules
+    call startruralbc
     call initglobal
     call initfields
     call inittestbed    !reads initial profiles from scm_in.nc, to be used in readinitfiles
+
+    call initruralboundary                !MK Initialize Rural Boundary for IBM
 
     call initboundary
     call initthermodynamics
@@ -378,7 +382,7 @@ contains
                                   wfls,whls,ug,vg,uprof,vprof,thlprof, qtprof,e12prof, svprof,&
                                   v0av,u0av,qt0av,ql0av,thl0av,sv0av,exnf,exnh,presf,presh,initial_presf,initial_presh,rhof,&
                                   thlpcar,thvh,thvf
-    use modglobal,         only : i1,i2,ih,j1,j2,jh,kmax,k1,dtmax,idtmax,dt,rdt,runtime,timeleft,tres,&
+    use modglobal,         only : i1,i2,ih,j1,j2,jh,imax,jmax,kmax,k1,dtmax,idtmax,dt,rdt,runtime,timeleft,tres,&
                                   rtimee,timee,ntrun,btime,dt_lim,nsv,&
                                   zf,dzf,dzh,rv,rd,cp,rlv,pref0,om23_gs,&
                                   ijtot,cu,cv,e12min,dzh,cexpnr,ifinput,lwarmstart,ltotruntime,itrestart,&
@@ -389,14 +393,15 @@ contains
                                   thvs_patch,lhetero,qskin
     use modsurface,        only : surface,qtsurf,dthldz,ps
     use modboundary,       only : boundary
-    use modmpi,            only : slabsum,myid,comm3d,mpierr,my_real
+    use modmpi,            only : slabsum,myid,comm3d,mpierr,my_real,myidx,myidy
     use modthermodynamics, only : thermodynamics,calc_halflev
     use moduser,           only : initsurf_user
 
     use modtestbed,        only : ltestbed,tb_ps,tb_thl,tb_qt,tb_u,tb_v,tb_w,tb_ug,tb_vg,&
                                   tb_dqtdxls,tb_dqtdyls,tb_qtadv,tb_thladv
+    use modruraldata,      only : bc_height
+    integer i,j,k,n,kmin
 
-    integer i,j,k,n
     logical negval !switch to allow or not negative values in randomnization
 
     real, allocatable :: height(:), th0av(:)
@@ -428,7 +433,7 @@ contains
         if (ltestbed) then
 
           write(*,*) 'readinitfiles: testbed mode: profiles for initialization obtained from scm_in.nc'
-          
+
           do k=1,kmax
             height (k) = zf(k)
             thlprof(k) = tb_thl(1,k)
@@ -443,7 +448,7 @@ contains
           !thls
           !wtsurf
           !wqsurf
-         
+
         else
 
           open (ifinput,file='prof.inp.'//cexpnr)
@@ -460,7 +465,7 @@ contains
                 vprof  (k), &
                 e12prof(k)
           end do
-        
+
           close(ifinput)
 
         end if   !ltestbed
@@ -491,9 +496,9 @@ contains
       call MPI_BCAST(uprof  ,kmax,MY_REAL   ,0,comm3d,mpierr)
       call MPI_BCAST(vprof  ,kmax,MY_REAL   ,0,comm3d,mpierr)
       call MPI_BCAST(e12prof,kmax,MY_REAL   ,0,comm3d,mpierr)
-      do k=1,kmax
       do j=1,j2
       do i=1,i2
+      do k=1,kmax
         thl0(i,j,k) = thlprof(k)
         thlm(i,j,k) = thlprof(k)
         qt0 (i,j,k) = qtprof (k)
@@ -511,6 +516,29 @@ contains
       end do
       end do
       end do
+	  
+      do j=1,j1
+      do i=1,i1
+	  kmin=bc_height(i+myidx*imax,j+myidy*jmax)
+      do k=1,kmin
+        thl0(i,j,k) = thls
+        thlm(i,j,k) = thls
+        qt0 (i,j,k) = 0.0
+        qtm (i,j,k) = 0.0
+        u0  (i,j,k) = 0.0
+        um  (i,j,k) = 0.0
+        v0  (i,j,k) = 0.0
+        vm  (i,j,k) = 0.0
+        w0  (i,j,k) = 0.0
+        wm  (i,j,k) = 0.0
+        e120(i,j,k) = e12min
+        e12m(i,j,k) = e12min
+        ekm (i,j,k) = 0.0
+        ekh (i,j,k) = 0.0
+      end do
+      end do
+      end do
+
     !---------------------------------------------------------------
     !  1.2 randomnize fields
     !---------------------------------------------------------------
@@ -714,7 +742,7 @@ contains
       if (ltestbed) then
 
           write(*,*) 'readinitfiles: testbed mode: profiles for ls forcing obtained from scm_in.nc'
-          
+
           do k=1,kmax
             height (k) = zf(k)
             ug     (k) = tb_ug(1,k)
@@ -725,7 +753,7 @@ contains
             dqtdtls(k) = tb_qtadv(1,k)
             thlpcar(k) = tb_thladv(1,k)
           end do
-         
+
       else
 
         open (ifinput,file='lscale.inp.'//cexpnr)
@@ -992,7 +1020,6 @@ contains
     integer i,j,k,n
     character(50) name,linkname
 
-    
       ihour = floor(rtimee/3600)
       imin  = floor((rtimee-ihour * 3600) /3600. * 60.)
       name = 'initdXXXhXXmXXXXXXXX.XXX'
@@ -1189,7 +1216,7 @@ contains
             j >= js .and. j <= je) then
             if (.not. negval) then ! Avoid non-physical negative values
               field(i-is+2,j-js+2,klev) = field(i-is+2,j-js+2,klev) + (ran-0.5)*2.0*min(ampl,field(i-is+2,j-js+2,klev))
-            else 
+            else
               field(i-is+2,j-js+2,klev) = field(i-is+2,j-js+2,klev) + (ran-0.5)*2.0*ampl
             endif
 
@@ -1419,5 +1446,16 @@ contains
     deallocate(pb,tb)
 
   end subroutine baseprofs
+
+  subroutine startruralbc
+    use modglobal,    only : itot, jtot
+    use modruraldata, only : bc_height
+
+    implicit none
+
+    allocate(bc_height (itot+1,jtot+1))
+    bc_height(:,:)=0
+
+  end subroutine startruralbc
 
 end module modstartup

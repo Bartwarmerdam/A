@@ -51,7 +51,7 @@ subroutine tstep_update
                         kmax,dx,dy,dzh,dt_lim,ladaptive,timeleft,idtmax,rdt,tres,longint ,lwarmstart
   use modfields, only : um,vm,wm
   use modsubgrid,only : ekm,ekh
-  use modmpi,    only : comm3d,mpierr,mpi_max,my_real
+  use modmpi,    only : comm3d,mpierr,mpi_max,my_real,myid,myidx,myidy
   implicit none
 
   real, allocatable, dimension (:) :: courtotl,courtot
@@ -127,6 +127,7 @@ subroutine tstep_update
            peclettotl=max(peclettotl,maxval(ekm(2:i1,2:j1,k))*rdt/minval((/dzh(k),dx,dy/))**2)
            peclettotl=max(peclettotl,maxval(ekh(2:i1,2:j1,k))*rdt/minval((/dzh(k),dx,dy/))**2)
         end do
+		!write(6,*) 'myid,myidx,myidy==',myid,myidx,myidy,' and peclettotl=',peclettotl
         call MPI_ALLREDUCE(peclettotl,peclettot,1,MY_REAL,MPI_MAX,comm3d,mpierr)
         dt = min(timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint))
         dt_reason = minloc((/timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint)/),1)

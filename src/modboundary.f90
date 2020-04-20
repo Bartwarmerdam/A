@@ -42,6 +42,7 @@ contains
 !>
   subroutine initboundary
     use modglobal, only : k1,kmax,pi,zf
+	use modruraldata, only : bc_height
     implicit none
 
     real    :: zspb, zspt
@@ -49,7 +50,7 @@ contains
     allocate(tsc(k1))
 ! Sponge layer
     if (ksp==-1) then
-      ksp  = min(3*kmax/4,kmax - 15)
+      ksp  = max(min(3*kmax/4,kmax - 15),(maxval(bc_height)+2))
     end if
 
     zspb    = zf(ksp)

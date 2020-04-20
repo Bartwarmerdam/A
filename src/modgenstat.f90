@@ -463,7 +463,8 @@ contains
     use modsubgriddata,only : ekm, ekh, csz
     use modglobal, only : i1,ih,j1,jh,k1,kmax,nsv,dzf,dzh,rlv,rv,rd,cp, &
                           ijtot,cu,cv,iadv_sv,iadv_kappa,eps1,dxi,dyi
-    use modmpi,    only : comm3d,my_real,mpi_sum,mpierr,slabsum
+    use modmpi,    only : comm3d,my_real,mpi_sum,mpierr,slabsum,airslabsum,myid
+	use modruraldata, only : lruralboundary
     implicit none
 
 
@@ -524,6 +525,7 @@ contains
     real ,allocatable, dimension(:,:,:):: sv0h
 
     integer i, j, k, n, km
+	integer ::  Nair(k1) ! MK: for airslabsum (averaging over existing air cells)
     real    tsurf, qsat, c1, c2
     real    qs0h, t0h, ekhalf, euhalf, evhalf
     real    wthls, wthlr, wqts, wqtr, wqls, wqlr, wthvs, wthvr
@@ -668,29 +670,59 @@ contains
 
     call MPI_ALLREDUCE(cfracavl,cfracav,k1,MY_REAL,MPI_SUM,comm3d,mpierr)
 
-    call slabsum(umav  ,1,k1,um  ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
-    call slabsum(vmav  ,1,k1,vm  ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
-    call slabsum(thlmav,1,k1,thlm,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
-    call slabsum(qtmav ,1,k1,qtm ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
-    call slabsum(qlmav ,1,k1,ql0 ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
-    call slabsum(thvmav,1,k1,thv0,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
+    if(.not. (lruralboundary)) then
+      call slabsum(umav  ,1,k1,um  ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
+      call slabsum(vmav  ,1,k1,vm  ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
+      call slabsum(thlmav,1,k1,thlm,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
+      call slabsum(qtmav ,1,k1,qtm ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
+      call slabsum(qlmav ,1,k1,ql0 ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
+      call slabsum(thvmav,1,k1,thv0,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
+	  
+	  umav  = umav  /ijtot + cu
+      vmav  = vmav  /ijtot + cv
+      thlmav = thlmav/ijtot
+      qtmav = qtmav /ijtot
+      qlmav = qlmav /ijtot
+      cfracav = cfracav / ijtot
+      thmav  = thlmav + (rlv/cp)*qlmav/exnf
+      thvmav = thvmav/ijtot
 
-    umav  = umav  /ijtot + cu
-    vmav  = vmav  /ijtot + cv
-    thlmav = thlmav/ijtot
-    qtmav = qtmav /ijtot
-    qlmav = qlmav /ijtot
-    cfracav = cfracav / ijtot
-    thmav  = thlmav + (rlv/cp)*qlmav/exnf
-    thvmav = thvmav/ijtot
-
-    cszav  = csz
+      cszav  = csz
   !
+      do n=1,nsv
+        call slabsum(svmav(1,n),1,k1,svm(1,1,1,n),2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
+      enddo
+      svmav = svmav/ijtot
+	else   ! MK: Calculate the average only over the air cells using airslabsum
+	  call airslabsum(umav  ,1,k1,um  ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair)
+      call airslabsum(vmav  ,1,k1,vm  ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair)
+      call airslabsum(thlmav,1,k1,thlm,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair)
+      call airslabsum(qtmav ,1,k1,qtm ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair)
+      call airslabsum(qlmav ,1,k1,ql0 ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair)
+      call airslabsum(thvmav,1,k1,thv0,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair)
+	  
+	  do k=1,k1
+	    umav(k)  = umav(k)  /Nair(k) + cu
+        vmav(k)  = vmav(k)  /Nair(k) + cv
+        thlmav(k) = thlmav(k) /Nair(k)
+        qtmav(k) = qtmav(k) /Nair(k)
+        qlmav(k) = qlmav(k) /Nair(k)
+        cfracav(k) = cfracav(k) / Nair(k)
+        thmav(k)  = thlmav(k) + (rlv/cp)*qlmav(k)/exnf(k)
+        thvmav(k) = thvmav(k) /Nair(k)
 
-    do n=1,nsv
-      call slabsum(svmav(1,n),1,k1,svm(1,1,1,n),2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1)
-    enddo
-    svmav = svmav/ijtot
+        cszav  = csz
+	  enddo
+  !
+      do n=1,nsv
+        call airslabsum(svmav(1,n),1,k1,svm(1,1,1,n),2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nair)
+      enddo
+	  do k=1,k1
+        svmav = svmav/Nair(k)
+	  enddo
+	endif
+
+
   !------------------------------------------------------------------
   !     4     CALCULATE SLAB AVERAGED OF FLUXES AND SEVERAL MOMENTS
   !     -------------------------------------------------------------
