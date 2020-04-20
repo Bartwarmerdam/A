@@ -40,6 +40,10 @@
 !! \end{equation}
 !! and the diffusion number $d$. The timestep is further limited by the needs of other modules, e.g. the statistics.
 !! \endlatexonly
+module tstep
+implicit none
+
+contains
 subroutine tstep_update
 
 
@@ -126,14 +130,7 @@ subroutine tstep_update
 		!write(6,*) 'myid,myidx,myidy==',myid,myidx,myidy,' and peclettotl=',peclettotl
         call MPI_ALLREDUCE(peclettotl,peclettot,1,MY_REAL,MPI_MAX,comm3d,mpierr)
         dt = min(timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint))
-		!if(myid==0) write(6,*) '--- dt=',dt
         dt_reason = minloc((/timee,dt_lim,idtmax,floor(rdt/tres*courant/courtotmax,longint),floor(rdt/tres*peclet/peclettot,longint)/),1)
-		!if(myid==0) write(6,*) 'dt_reason=',dt_reason,' and rdt/tres*peclet/peclettot=',rdt/tres*peclet/peclettot
-		!if(myid==0) write(6,*) 'other timesteps: timee=',timee,'dt_lim=',dt_lim,'idtmax=',idtmax,'rdt/tres*courant/courtotmax=',rdt/tres*courant/courtotmax
-		!if(myid==0) write(6,*) 'rdt=',rdt
-		!if(myid==0) write(6,*) 'tres=',tres
-		!if(myid==0) write(6,*) 'peclet=',peclet
-		!if(myid==0) write(6,*) 'peclettot=',peclettot
         rdt = dble(dt)*tres
         timeleft=timeleft-dt
         dt_lim = timeleft
@@ -173,13 +170,12 @@ end subroutine tstep_update
 subroutine tstep_integrate
 
 
-  use modglobal, only : i1,j1,kmax,nsv,rdt,rk3step,e12min
+  use modglobal, only : rdt,rk3step,e12min
   use modfields, only : u0,um,up,v0,vm,vp,w0,wm,wp,wp_store,&
                         thl0,thlm,thlp,qt0,qtm,qtp,&
                         e120,e12m,e12p,sv0,svm,svp
   implicit none
 
-  integer i,j,k,n
   real rk3coef
 
   rk3coef = rdt / (4. - dble(rk3step))
@@ -220,3 +216,4 @@ subroutine tstep_integrate
   e12p=0.
 
 end subroutine tstep_integrate
+end module tstep
