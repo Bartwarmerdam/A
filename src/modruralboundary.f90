@@ -1,5 +1,5 @@
 !> \file modruralboundary.f90
-!! By Michael Koene, TU Delft, section Atmospheric Physics, October 8, 2019
+!! By Michael Koene, email: mich4all@live.nl, TU Delft, section Atmospheric Physics, October 8, 2019
 !! TODO: Write comments to output file
 !!       clean up code (write statements)
 !!       Test performance
