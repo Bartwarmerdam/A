@@ -28,7 +28,7 @@
 subroutine advection
 
   use modglobal,  only : lmoist, nsv, iadv_mom,iadv_tke,iadv_thl,iadv_qt,iadv_sv, &
-                         iadv_cd2,iadv_5th,iadv_52,iadv_cd6,iadv_62,iadv_kappa,iadv_upw,iadv_hybrid,iadv_hybrid_f,iadv_null,leq
+                         iadv_cd2,iadv_5th,iadv_52,iadv_cd6,iadv_62,iadv_kappa,iadv_upw,iadv_hybrid,iadv_hybrid_f,iadv_kappa_f,iadv_null,leq
   use modfields,  only : u0,up,v0,vp,w0,wp,e120,e12p,thl0,thlp,qt0,qtp,sv0,svp
   use modsubgrid, only : lsmagorinsky
   use advec_hybrid, only : advecc_hybrid
@@ -41,35 +41,75 @@ subroutine advection
   ! leq = .false. ! for testing that the non-uniform advection routines agree with the uniform ones
                   ! when the grid is uniform
   
-  !if(myid==0) write(6,*) 'case iadv_5th=',iadv_5th
-  
+  select case(iadv_mom)
+    case(iadv_cd2)
+      call advecu_2nd(u0,up)
+      call advecv_2nd(v0,vp)
+      call advecw_2nd(w0,wp)
+    case(iadv_5th)
+      !if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
+      call advecu_5th(u0,up)
+      call advecv_5th(v0,vp)
+      call advecw_5th(w0,wp)
+    case(iadv_52)
+      call advecu_52(u0,up)
+      call advecv_52(v0,vp)
+      call advecw_52(w0,wp)
+    case(iadv_cd6)
+      !if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
+      call advecu_6th(u0,up)
+      call advecv_6th(v0,vp)
+      call advecw_6th(w0,wp)
+    case(iadv_62)
+      call advecu_62(u0,up)
+      call advecv_62(v0,vp)
+      call advecw_62(w0,wp)
+    case(iadv_hybrid)
+      !if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
+      call advecu_5th(u0,up)
+      call advecv_5th(v0,vp)
+      call advecw_5th(w0,wp)
+    case(iadv_hybrid_f)
+      !if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
+      call advecu_5th(u0,up)
+      call advecv_5th(v0,vp)
+      call advecw_5th(w0,wp)
+    case(iadv_null)
+      ! null advection scheme 
+      stop "Null advection scheme selected for iadv_mom - probably a bad idea."
+    case default
+      stop "Unknown advection scheme "
+  end select
+
   if (.not. lsmagorinsky) then
     select case(iadv_tke)
       case(iadv_cd2)
 	    !if(myid==28) write(6,*) 'advection called in advection'
         call advecc_2nd(e120,e12p)
       case(iadv_5th)
-        if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
+        !if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
         call advecc_5th(e120,e12p)
       case(iadv_52)
         call advecc_52(e120,e12p)
       case(iadv_cd6)
-        if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
+        !if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
         call advecc_6th(e120,e12p)
       case(iadv_62)
         call advecc_62(e120,e12p)
       case(iadv_kappa)
-         if (.not. leq) stop "advec_kappa does not support a non-uniform vertical grid."
+        if (.not. leq) stop "advec_kappa does not support a non-uniform vertical grid."
         call advecc_kappa(e120,e12p)
+      case(iadv_kappa_f)
+        call advecc_kappa_f(e120,e12p)
       case(iadv_hybrid)
-         if (.not. leq) stop "advec_hybrid does not support a non-uniform vertical grid."
-         call advecc_hybrid(e120,e12p)
+        !if (.not. leq) stop "advec_hybrid does not support a non-uniform vertical grid."
+        call advecc_hybrid(e120,e12p)
       case(iadv_hybrid_f)
-         if (.not. leq) stop "advec_hybrid_f does not support a non-uniform vertical grid."
-         call advecc_hybrid_f(e120,e12p)         
+        !if (.not. leq) stop "advec_hybrid_f does not support a non-uniform vertical grid."
+        call advecc_hybrid_f(e120,e12p)         
       case(iadv_null)
-         ! null advection scheme 
-         stop "Null advection scheme selected for iadv_tke - probably a bad idea."
+        ! null advection scheme 
+        stop "Null advection scheme selected for iadv_tke - probably a bad idea."
       case default
         stop "Unknown advection scheme "
     end select
@@ -80,26 +120,28 @@ subroutine advection
 	  !if(myidx==3 .and. myidy==3) write(6,*) 'Start with Advec thlp'
       call advecc_2nd(thl0,thlp)
     case(iadv_5th)
-      if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
+      !if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
       call advecc_5th(thl0,thlp)
     case(iadv_52)
       call advecc_52(thl0,thlp)
     case(iadv_cd6)
-      if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
+      !if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
       call advecc_6th(thl0,thlp)
     case(iadv_62)
       call advecc_62(thl0,thlp)
     case(iadv_kappa)
       if (.not. leq) stop "advec_kappa does not support a non-uniform vertical grid."
       call advecc_kappa(thl0,thlp)
+    case(iadv_kappa_f)
+      call advecc_kappa_f(thl0,thlp)
     case(iadv_upw)
       if (.not. leq) stop "advec_upw does not support a non-uniform vertical grid."
       call advecc_upw(thl0,thlp)
     case(iadv_hybrid)
-      if (.not. leq) stop "advec_hybrid does not support a non-uniform vertical grid."
+       !if (.not. leq) stop "advec_hybrid does not support a non-uniform vertical grid."
       call advecc_hybrid(thl0,thlp)
     case(iadv_hybrid_f)
-      if (.not. leq) stop "advec_hybrid_f does not support a non-uniform vertical grid."
+      !if (.not. leq) stop "advec_hybrid_f does not support a non-uniform vertical grid."
       call advecc_hybrid_f(thl0,thlp,1.0)
     case(iadv_null)
       ! null advection scheme 
@@ -113,26 +155,28 @@ subroutine advection
       case(iadv_cd2)
         call advecc_2nd(qt0,qtp)
       case(iadv_5th)
-        if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
+        !if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
         call advecc_5th(qt0,qtp)
       case(iadv_52)
         call advecc_52(qt0,qtp)
       case(iadv_cd6)
-        if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
+        !if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
         call advecc_6th(qt0,qtp)
       case(iadv_62)
         call advecc_62(qt0,qtp)
       case(iadv_kappa)
         if (.not. leq) stop "advec_kappa does not support a non-uniform vertical grid."
         call advecc_kappa(qt0,qtp)
+      case(iadv_kappa_f)
+         call advecc_kappa_f(qt0,qtp)
       case(iadv_upw)
         if (.not. leq) stop "advec_upw does not support a non-uniform vertical grid."
         call advecc_upw(qt0,qtp)
       case(iadv_hybrid)
-        if (.not. leq) stop "advec_hybrid does not support a non-uniform vertical grid."
+        !if (.not. leq) stop "advec_hybrid does not support a non-uniform vertical grid."
         call advecc_hybrid(qt0,qtp)
       case(iadv_hybrid_f)
-        if (.not. leq) stop "advec_hybrid_f does not support a non-uniform vertical grid."
+        !if (.not. leq) stop "advec_hybrid_f does not support a non-uniform vertical grid."
         call advecc_hybrid_f(qt0,qtp,1e-3)
       case(iadv_null)
         ! null advection scheme 
@@ -147,26 +191,28 @@ subroutine advection
     case(iadv_cd2)
       call advecc_2nd(sv0(:,:,:,n),svp(:,:,:,n))
     case(iadv_5th)
-      if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
+      !if (.not. leq) stop "advec_5th does not support a non-uniform vertical grid."
       call advecc_5th(sv0(:,:,:,n),svp(:,:,:,n))
     case(iadv_52)
       call advecc_52(sv0(:,:,:,n),svp(:,:,:,n))
     case(iadv_cd6)
-      if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
+      !if (.not. leq) stop "advec_6th does not support a non-uniform vertical grid."
       call advecc_6th(sv0(:,:,:,n),svp(:,:,:,n))
     case(iadv_62)
       call advecc_62(sv0(:,:,:,n),svp(:,:,:,n))
     case(iadv_kappa)
       if (.not. leq) stop "advec_kappa does not support a non-uniform vertical grid."
       call advecc_kappa(sv0(:,:,:,n),svp(:,:,:,n))
+    case(iadv_kappa_f)
+      call advecc_kappa_f(sv0(:,:,:,n),svp(:,:,:,n))
     case(iadv_upw)
       if (.not. leq) stop "advec_upw does not support a non-uniform vertical grid."
       call advecc_upw(sv0(:,:,:,n),svp(:,:,:,n))
     case(iadv_hybrid)
-      if (.not. leq) stop "advec_hybrid does not support a non-uniform vertical grid."
+      !if (.not. leq) stop "advec_hybrid does not support a non-uniform vertical grid."
       call advecc_hybrid(sv0(:,:,:,n),svp(:,:,:,n))
     case(iadv_hybrid_f)
-      if (.not. leq) stop "advec_hybrid_f does not support a non-uniform vertical grid."
+      !if (.not. leq) stop "advec_hybrid_f does not support a non-uniform vertical grid."
       call advecc_hybrid_f(sv0(:,:,:,n),svp(:,:,:,n))      
     case(iadv_null)
        ! null advection scheme - do nothing

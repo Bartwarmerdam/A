@@ -150,7 +150,7 @@ contains
 !                                                                 |
 !-----------------------------------------------------------------|
 
-  use modglobal,    only : i1,j1,kmax,dzh,dzf,cu,cv,om22,om23,imax,jmax
+  use modglobal,    only : i1,j1,kmax,dzh,dzf,cu,cv,om22,om23,lcoriol,imax,jmax
   use modfields,    only : u0,v0,w0,up,vp,wp
   use modruraldata, only : bc_height	
   use modmpi,       only : myidx, myidy
@@ -158,6 +158,8 @@ contains
 
   integer i, j, k, jm, jp, km, kp, kmin
 
+  if (lcoriol .eqv. .false.) return
+  
   do j=2,j1
     jp=j+1
     jm=j-1

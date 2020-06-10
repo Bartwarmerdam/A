@@ -6,7 +6,7 @@
 !! Dutch Atmospheric Large Eddy Simulation
 !! \section DALES Dutch Atmospheric Large Eddy Simulation
 !!
-!! @version 4.0.1alpha
+!! @version 4.3
 !!
 !! @author
 !! Steef Boing
@@ -95,12 +95,13 @@
 !!  Copyright 1993-2009 Delft University of Technology, Wageningen University,
 !! Utrecht University, KNMI
 !!
-program DALES      !Version 4.0.0alpha
+program DALES
 
 !!----------------------------------------------------------------
 !!     0.0    USE STATEMENTS FOR CORE MODULES
 !!----------------------------------------------------------------
   use modglobal,         only : rk3step,timeleft, rdt,e12min,i1
+  use modmpi,            only : initmpicomm,myid,myidx,myidy
   use modstartup,        only : startup, writerestartfiles,testwctime,exitmodules
   use modtimedep,        only : timedep
   use modboundary,       only : boundary, grwdamp! JvdD ,tqaver
@@ -111,6 +112,7 @@ program DALES      !Version 4.0.0alpha
   use modforces,         only : forces, coriolis, lstend
   use modradiation,      only : radiation
   use modpois,           only : poisson, p
+  use tstep,             only : tstep_update,  tstep_integrate
   !use modedgecold,       only : coldedge
 
 !----------------------------------------------------------------
@@ -153,7 +155,6 @@ program DALES      !Version 4.0.0alpha
 
   ! Use to create a point source for scalar 1
   use modfields,       only : svp,svm,u0,um,up,sv0,thlp,e12m,e12p,thlm,e12prof
-  use modmpi,          only : myid,myidx,myidy
   
   use modsurfdata,     only : thls
 
@@ -165,6 +166,7 @@ program DALES      !Version 4.0.0alpha
 !----------------------------------------------------------------
 
   ! call initmpi initmpi depends on options in the namelist, call moved to startup
+  call initmpicomm
   call startup
 
 !---------------------------------------------------------
@@ -191,7 +193,7 @@ program DALES      !Version 4.0.0alpha
   call initbulkmicrostat
   call initbudget
   !call initstressbudget
-  call initchem
+! call initchem
   call initheterostats
   call initcanopy
 
