@@ -12,12 +12,14 @@ module modruraldata
   logical :: lnoslip        = .false.        !< Switch to use a no slip condition for the walls
   logical :: lwallfunc      = .false.        !< Switch to use wallfunctions to describe wallshear
   logical :: lfluxform      = .true.         !< Switch to use the fluxform of the advection in advection correction
+  logical :: lpoislast      = .true.         !< Switch to use the Poisson solver after the Immersed boundary method
+                                             !  .false. will set the order to: ZeroVelocity -> PoissonSolver -> IBM
 
   real    :: thlwall        = 293.           !< Wall temperature for temperature flux at the sides and top of the buildings
   real    :: ct             = 1.             !< coefficient for temperature flux near the wall 
 
   integer :: imaxb,jmaxb ! Integers imax and jmax to prevent circular dependency
-  
+
   !< Field for the wall shear stress
   real, allocatable    :: damping(:,:,:)
   !< Field for the immersed boundary height

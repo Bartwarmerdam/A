@@ -6,11 +6,11 @@
 
 module modruralboundary
 
-  use modruraldata, only : lruralboundary, ldefrural, lnoslip, lwallfunc, lfluxform, damping, bc_height, pres0, thlwall, ct
+  use modruraldata, only : lruralboundary,lpoislast, ldefrural, lnoslip, lwallfunc, lfluxform, damping, bc_height, pres0, thlwall, ct
   implicit none
   save
   public :: initruralboundary, exitruralboundary,&
-            applyruralboundary
+            applyruralboundary, zerowallvelocity
 
   ! Fields
   logical, allocatable :: limmersed_boundary(:,:,:)        !< Boolean array where .true. is the immersed boundary
@@ -50,7 +50,7 @@ contains
 
     namelist/NAMRURALBOUNDARY/ lruralboundary, ldefrural, &
                                lwallfunc, lnoslip, lfluxform, &
-                               thlwall, ct
+                               thlwall, lpoislast, ct
 
     allocate(pres0(2-ih:i1+ih,2-jh:j1+jh,kmax))
     pres0(:,:,:) = 0
@@ -78,7 +78,8 @@ contains
     call MPI_BCAST(ldefrural        ,    1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(lfluxform        ,    1, mpi_logical , 0, comm3d, mpierr)
     call MPI_BCAST(thlwall          ,    1, my_real     , 0, comm3d, mpierr)
-	call MPI_BCAST(ct               ,    1, my_real     , 0, comm3d, mpierr)
+    call MPI_BCAST(lpoislast        ,    1, mpi_logical , 0, comm3d, mpierr)
+    call MPI_BCAST(ct               ,    1, my_real     , 0, comm3d, mpierr)
 
     if (lnoslip .and. lwallfunc) then
       print *, 'Problem in namoptions NAMRURALBOUNDARY'
@@ -181,9 +182,9 @@ contains
         write(6,*) 'Succesfully generated immersed boundary in ruralboundary'
       endif
     endif
-	
-	if(myid==0) write(6,*) 'itot,jtot,imax,jmax=',itot,jtot,imax,jmax
-	
+
+    if(myid==0) write(6,*) 'itot,jtot,imax,jmax=',itot,jtot,imax,jmax
+
     limmersed_boundary(itot+1,:,:)=limmersed_boundary(1,:,:)
     limmersed_boundary(:,jtot+1,:)=limmersed_boundary(:,1,:)
     call MPI_BCAST(bc_height,(itot+1)*(jtot+1),MPI_INTEGER ,0,comm3d,mpierr)
@@ -491,14 +492,12 @@ contains
 
     integer  :: maxlocx(3)
 
-    !if (.not. (myid==0)) return
     if (.not. (lruralboundary)) return
 
     if (myid==0) then
       !write(6,*) 'Starting with applyruralboundary, t = ',timee
       !write(6,*) 'The timestep dt = ',dt
     endif
-    !write(6,*) 'um,vm,wm = ',um(2,2,2),',',vm(2,2,2),',',wm(2,2,2)
 
     rk3coef = rdt / (4. - dble(rk3step))
     rk3coefi = 1. / rk3coef
@@ -511,11 +510,6 @@ contains
     tempvp(:,:,:)=0.
     tempwp(:,:,:)=0.
 
-    !if(myid==0) write(6,*) 'voor ruralbc thetalp(6,9,10)=',thlp(6,9,10)
-    !if(myid==0) write(6,*) 'voor ruralbc thetalp(6,9,11)=',thlp(6,9,11)
-
-    !if(myid==0) write(6,*) 'svp voor loop: svp(6,9,10,1)=',svp(6,9,10,1)
-    !if(myid==0) write(6,*) 'j1=',j1
     do i=2,i1  !1+myid*imax,myid*imax+1+imax
       do j=2,j1              !1+myid*jmax,myid*jmax+1+jmax
         do k=2,kmax
@@ -536,10 +530,6 @@ contains
             endif
           elseif(lwallfunc) then         !< wallfunctions
             if (lnorm_x(i,j,k)) then     !< Wall in x-direction
-              !if(myid==0 .and. i==6 .and. j==9 .and. k==5) write(6,*) '6 9 5 xwall'
-              !if(myid==0 .and. i==17 .and. j==9 .and. k==9) write(6,*) '17 9 9 xwall'
-              !if(myid==0 .and. i==10 .and. j==9 .and. k==10) write(6,*) '10 9 10 xwall'
-
 
               emmo = 0.25  * ( &
                 ekm(i,j,k)+ekm(i,j-1,k)+ekm(i-1,j-1,k)+ekm(i-1,j,k)  )
@@ -590,19 +580,13 @@ contains
               call xwallscalar(i,j,k,thl0,tempthlp)
               call xwalltemp(i,j,k,thlm,tempthlp)
 
-              !if(myid==0 .and. i==6 .and. j==9 .and. k==8) write(6,*) 'tempsvp voor xwallscalar:',tempsvp(17,9,9,1)
               do nc=1,nsv
                 call xwallscalar(i,j,k,sv0(:,:,:,nc),tempsvp(:,:,:,nc))
               end do
-              !if(myid==0 .and. i==6 .and. j==9 .and. k==8) write(6,*) 'tempsvp na xwallscalar:',tempsvp(17,9,9,1)
               call xwalle12(i,j,k)
 
             endif
             if (lnorm_y(i,j,k)) then     !< Wall in y-direction
-              !if(myid==0 .and. i==18 .and. j==9 .and. k==9) write(6,*) '18 9 9 ywall'
-              !if(myid==0 .and. i==17 .and. j==9 .and. k==9) write(6,*) '17 9 9 ywall'
-              !if(myid==0 .and. i==18 .and. j==10 .and. k==9) write(6,*) '18 10 9 ywall'
-              !if(myid==0 .and. i==17 .and. j==10 .and. k==9) write(6,*) '17 10 9 ywall'
               emmo = 0.25  * ( &
                 ekm(i,j,k)+ekm(i,j-1,k)+ekm(i-1,j-1,k)+ekm(i-1,j,k)  )
 
@@ -861,7 +845,7 @@ contains
               vp(i,j,k)=-vm(i,j,k)*rk3coefi
               wp(i,j,k)=-wm(i,j,k)*rk3coefi
               thlp(i,j,k)=(thlwall-thlm(i,j,k))*rk3coefi
-			  e12p(i,j,k)=(e12min-e12m(i,j,k))*rk3coefi
+              e12p(i,j,k)=(e12min-e12m(i,j,k))*rk3coefi
             else
               up(i,j,k)=up(i,j,k)+tempup(i,j,k)
               vp(i,j,k)=vp(i,j,k)+tempvp(i,j,k)
@@ -930,6 +914,52 @@ contains
     !if(myid==0) write(6,*) 'Finished apply ruralboundary'
     return
   end subroutine applyruralboundary
+
+
+  subroutine zerowallvelocity !<- MK: Set velocity at the immersed boundaries to 0 for a better interaction with the poissonsolver
+
+    use modfields,      only : um, vm, wm, up, vp, wp
+    use modglobal,      only : rk3step, imax, jmax, kmax, i1, j1, k1, ih, jh, rdt
+    use modmpi,         only : excjs,myidx,myidy
+
+    implicit none
+    integer  :: i, j, k,ipos,jpos
+    real     :: rk3coef,rk3coefi
+
+    if (.not. (lruralboundary)) return
+
+    rk3coef = rdt / (4. - dble(rk3step))
+    rk3coefi = 1. / rk3coef
+
+    do i=1,i1
+      do j=1,j1
+        do k=1,kmax
+          ipos=i+myidx*imax
+          jpos=j+myidy*jmax
+          if (limmersed_boundary(ipos,jpos,k)) then
+            up(i,j,k)=-um(i,j,k)*rk3coefi
+            vp(i,j,k)=-vm(i,j,k)*rk3coefi
+            wp(i,j,k)=-wm(i,j,k)*rk3coefi
+          endif
+          if (lnorm_x(i,j,k)) then
+            up(i,j,k)=-um(i,j,k)*rk3coefi
+          end if
+          if (lnorm_y(i,j,k)) then
+            vp(i,j,k)=-vm(i,j,k)*rk3coefi
+          end if
+          if (lnorm_z(i,j,k)) then
+          ! Not needed here
+          end if
+        end do
+      end do
+    end do
+    call excjs( up  , 2,i1,2,j1,1,k1,ih,jh)
+    call excjs( vp  , 2,i1,2,j1,1,k1,ih,jh)
+    call excjs( wp  , 2,i1,2,j1,1,k1,ih,jh)
+
+    return
+  end subroutine zerowallvelocity
+
 
   subroutine xwallscalar(i,j,k,putin,putout)
 
@@ -1019,9 +1049,9 @@ contains
     integer, intent(in)    :: i,j,k
     real,    intent(in)    :: thlm(2-ih:i1+ih,2-jh:j1+jh,k1)
     real,    intent(inout) :: tempthlp(2-ih:i1+ih,2-jh:j1+jh,k1)
-	real                   :: rk3coef,rk3coefi
-	
-	rk3coef = rdt / (4. - dble(rk3step))
+    real                   :: rk3coef,rk3coefi
+
+    rk3coef = rdt / (4. - dble(rk3step))
     rk3coefi = 1. / rk3coef
 
     tempthlp(i  ,j,k) = ct * (thlwall - thlm(i  ,j,k)) * rk3coefi
@@ -1039,9 +1069,9 @@ contains
     integer, intent(in)    :: i,j,k
     real,    intent(in)    :: thlm(2-ih:i1+ih,2-jh:j1+jh,k1)
     real,    intent(inout) :: tempthlp(2-ih:i1+ih,2-jh:j1+jh,k1)
-	real                   :: rk3coef,rk3coefi
-	
-	rk3coef = rdt / (4. - dble(rk3step))
+    real                   :: rk3coef,rk3coefi
+
+    rk3coef = rdt / (4. - dble(rk3step))
     rk3coefi = 1. / rk3coef
 
     tempthlp(i,j  ,k) = ct * (thlwall - thlm(i,j  ,k)) * rk3coefi

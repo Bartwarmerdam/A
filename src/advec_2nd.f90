@@ -124,19 +124,6 @@ subroutine advecc_2nd(putin,putout)
 
   ! MK: Apply immersed boundary conditions at the locations of the walls
   if (lruralboundary) then
-    !if(myidx==3 .and. myidy==3) write(6,*) 'lnorm_x(10,32,1)',lnorm_x(10,32,1)
-	!if(myidx==3 .and. myidy==3) write(6,*) 'lnorm_y(10,32,1)',lnorm_y(10,32,1)!
-	!if(myidx==3 .and. myidy==3) write(6,*) 'lnorm_z(10,32,1)',lnorm_z(10,32,1)
-	!if(myidx==3 .and. myidy==3) write(6,*) 'lnorm_x(11,32,1)',lnorm_x(11,32,1)!
-	!if(myidx==3 .and. myidy==3) write(6,*) 'lnorm_y(10,33,1)',lnorm_y(10,33,1)!
-	!if(myidx==3 .and. myidy==3) write(6,*) 'lnorm_z(10,32,2)',lnorm_z(10,32,2)
-	
-    !if(myid==28) write(6,*) 'lnorm_y(11,23,2)',lnorm_y(11,23,2)
-	!if(myid==28) write(6,*) 'lnorm_z(11,23,2)',lnorm_z(11,23,2)
-	!if(myid==28) write(6,*) 'lnorm_x(12,23,2)',lnorm_x(12,23,2)
-	!if(myid==28) write(6,*) 'lnorm_y(11,24,2)',lnorm_y(11,24,2)
-	!if(myid==28) write(6,*) 'lnorm_z(11,23,3)',lnorm_z(11,23,3)
-	!if(myid==28) write(6,*) 'bc_height(11,23)',bc_height(11+myidx*imax,23+myidy*jmax)
     if (lfluxform) then
       ! MK: Removal of the additional term at each point for each direction near the boundary
       tempputout(:,:,:)=0.

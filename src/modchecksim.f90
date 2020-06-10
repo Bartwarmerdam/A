@@ -93,6 +93,7 @@ contains
     call calccourant
     call calcpeclet
     call chkdiv
+	call chkwallvel
     dtmn  = 0.
     ndt   = 0.
 
@@ -209,6 +210,33 @@ contains
    return
 
   end subroutine chkdiv
+!> MK: ckhwallvel: Checks average u velocity inside the walls
+  subroutine chkwallvel
+
+    use modglobal, only : i1,ih,j1,jh,k1,cu
+    use modfields, only : um
+    use modmpi,    only : myid,comm3d,mpi_sum,mpi_max,my_real,mpierr,wallslabsum
+    use modruraldata, only : lruralboundary
+    implicit none
+
+    real uwav,uwallavg
+    integer Nwall
+    if (.not. (lruralboundary)) return
+
+    Nwall=0
+    uwav = 0.
+    uwallavg = 0.
+
+    call wallslabsum(uwav  ,1,k1,abs(um)  ,2-ih,i1+ih,2-jh,j1+jh,1,k1,2,i1,2,j1,1,k1,Nwall)
+    uwallavg  = uwav  /Nwall + cu
+
+    if(myid==0)then
+      write(6 ,'(A,2ES11.2)')'u_wallavg = ', uwallavg
+   end if
+
+   return
+
+  end subroutine chkwallvel
 
 end module modchecksim
 

@@ -599,6 +599,52 @@ contains
     return
   end subroutine airslabsum
 
+  !MK: Subroutine wallslabsum - Calculates the slabsum of the cells containing buildings ignoring the air cells
+  !                            Nwall is the number of immersed boundary cells in total usable for calculating correct averages.
+  subroutine wallslabsum(aver,ks,kf,var,ib,ie,jb,je,kb,ke,ibs,ies,jbs,jes,kbs,kes,Nwall)
+    use modruraldata, only : bc_height, imaxb, jmaxb
+    implicit none
+
+    integer, intent(out) :: Nwall
+    integer :: ks,kf
+    integer :: ib,ie,jb,je,kb,ke,ibs,ies,jbs,jes,kbs,kes
+    real    :: aver
+    real    :: var (ib:ie,jb:je,kb:ke)
+    real    :: averl
+    real    :: avers
+    integer :: Nwalll
+    integer :: Nwalls
+    integer :: i,j,k,kmin
+
+    averl    = 0.
+    avers    = 0.
+    aver     = 0.
+    Nwalll    = 0
+    Nwalls    = 0
+    Nwall     = 0
+
+    do i=2,imaxb
+    do j=2,jmaxb
+    kmin=bc_height(i+myidx*imaxb,j+myidy*jmaxb)+1
+    do k=1,kmin-1
+      averl = averl+var(i,j,k)
+      Nwalll = Nwalll+1
+    enddo
+    enddo
+    enddo
+
+    call MPI_ALLREDUCE(averl, avers, 1,  MY_REAL, &
+                       MPI_SUM, comm3d,mpierr)
+    call MPI_ALLREDUCE(Nwalll, Nwalls, 1,  MPI_INTEGER, &
+                       MPI_SUM, comm3d,mpierr)
+
+    aver = aver + avers
+    Nwall = Nwall + Nwalls
+
+    return
+  end subroutine wallslabsum
+
+
   subroutine mpi_get_time(val)
    real, intent(out) :: val
 
