@@ -1,0 +1,88 @@
+&RUN
+iexpnr     =  001
+runtime    =  360
+dtmax      =  0.1
+ladaptive  =  .true.
+irandom    =  43
+randthl    =  0.1
+randqt     =  0e-5
+nsv        =  2
+nprocx     =  4
+nprocy     =  8
+lwarmstart =  .false.
+startfile  =  "initd003h00mx000y000.017"
+/
+&DOMAIN
+itot       =  64 
+jtot       =  64
+kmax       =  200
+xsize      =  320.
+ysize      =  320.
+xlat       =  32.
+xlon       =  129.
+/
+&NAMSURFACE
+lmostlocal  = .true.
+lsmoothflux = .false.
+wtsurf      = 1e-6
+wqsurf      = 0
+isurf       = 4
+/
+&PHYSICS
+ps         =  101900.00
+thls       =  293.
+lmoist     =  .false.
+lcoriol    =  .true.
+iradiation = 0
+z0         = 0.05
+/
+&DYNAMICS
+lqlnr      =  .true.
+cu         =  0.
+cv         =  0.
+iadv_mom    =  2
+iadv_tke    =  2
+iadv_thl    =  2
+iadv_qt     =  2
+iadv_sv     =  2
+/
+&NAMSUBGRID
+ldelta      = .true.
+/
+&NAMCHECKSIM
+tcheck      = 5
+/
+&NAMTIMESTAT
+ltimestat   = .true.
+dtav        = 60
+/
+&NAMGENSTAT
+lstat       = .true.
+dtav        = 60
+timeav      = 300
+/
+&NAMSAMPLING
+dtav        = 60
+timeav      = 1800.
+lsampup     = .true.
+/
+&NAMNETCDFSTATS
+lnetcdf = .true.
+/
+&NAMRURALBOUNDARY
+lruralboundary = .true.
+ldefrural      = .true.
+lnoslip        = .false.
+lwallfunc      = .true.
+lfluxform      = .true.
+lpoislast      = .true.
+thlwall        = 293.
+ct             = 0.
+/
+&NAMFIELDDUMP
+lfielddump = .true.
+klow = 1
+khigh = 200
+dtav = 1080
+ldiracc = .true.
+/
