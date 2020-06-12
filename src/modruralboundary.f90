@@ -38,7 +38,7 @@ module modruralboundary
 
 contains
   subroutine initruralboundary
-    use modglobal,  only : itot, jtot, ih, i1, jh, j1, k1, imax, jmax, kmax, cexpnr, ifnamopt, ifinput, fname_options, nsv, e12min
+    use modglobal,  only : itot, jtot, ih, i1, jh, j1, k1, imax, jmax, kmax, cexpnr, ifnamopt, ifinput, fname_options, nsv, e12min, cu, cv
     use modmpi,     only : myid, mpi_logical, comm3d, mpierr, MPI_INTEGER, myidx, myidy, my_real
     use modsurfdata, only : thls
     use modfields,   only : thl0,thlm,qt0,qtm,u0,um,v0,vm,w0,wm,e120,e12m
@@ -82,20 +82,28 @@ contains
     call MPI_BCAST(ct               ,    1, my_real     , 0, comm3d, mpierr)
 
     if (lnoslip .and. lwallfunc) then
-      print *, 'Problem in namoptions NAMRURALBOUNDARY'
-      print *, 'Cannot use both no slip conditions and wall functions for the shear'
-      print *, 'Either set lnoslip to true or lwallfunc to true but not both.'
-	  print *, 'lwallfunc = .true. is recommended'
+      if(myid==0) print *, 'Problem in namoptions NAMRURALBOUNDARY'
+      if(myid==0) print *, 'Cannot use both no slip conditions and wall functions for the shear'
+      if(myid==0) print *, 'Either set lnoslip to true or lwallfunc to true but not both.'
+	  if(myid==0) print *, 'lwallfunc = .true. is recommended'
       stop 'ERROR: Problem in namoptions NAMRURALBOUNDARY'
     endif
 
     if (.not. (lnoslip .or. lwallfunc)) then
-      print *, 'Problem in namoptions NAMRURALBOUNDARY'
-      print *, 'Cannot go without no slip conditions or wall functions for the shear'
-      print *, 'Either set lnoslip to true or lwallfunc to true by the use of lnoslip = .true. or lwallfunc = .true.'
-	  print *, 'lwallfunc = .true. is recommended'
+      if(myid==0) print *, 'Problem in namoptions NAMRURALBOUNDARY'
+      if(myid==0) print *, 'Cannot go without no slip conditions or wall functions for the shear'
+      if(myid==0) print *, 'Either set lnoslip to true or lwallfunc to true by the use of lnoslip = .true. or lwallfunc = .true.'
+	  if(myid==0) print *, 'lwallfunc = .true. is recommended'
       stop 'ERROR: Problem in namoptions NAMRURALBOUNDARY'
     endif
+	
+	if (abs(cu)>1e-15 .or. abs(cv)>1e-15) then
+	  if(myid==0) print *, 'Problem in namoptions'
+      if(myid==0) print *, 'cu or cv cannot be nonzero while using ruralboundary'
+      if(myid==0) print *, 'The buildings would move in that case'
+	  if(myid==0) print *, 'Set cu and cv to 0. to solve this problem or simulate without buildings'
+      stop 'ERROR: Problem in namoptions NAMRURALBOUNDARY with cu and cv'
+	endif
 
     write(6,*) 'allocating fields in ruralboundary'
 
