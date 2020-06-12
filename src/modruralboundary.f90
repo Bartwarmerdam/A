@@ -85,6 +85,7 @@ contains
       print *, 'Problem in namoptions NAMRURALBOUNDARY'
       print *, 'Cannot use both no slip conditions and wall functions for the shear'
       print *, 'Either set lnoslip to true or lwallfunc to true but not both.'
+	  print *, 'lwallfunc = .true. is recommended'
       stop 'ERROR: Problem in namoptions NAMRURALBOUNDARY'
     endif
 
@@ -92,6 +93,7 @@ contains
       print *, 'Problem in namoptions NAMRURALBOUNDARY'
       print *, 'Cannot go without no slip conditions or wall functions for the shear'
       print *, 'Either set lnoslip to true or lwallfunc to true by the use of lnoslip = .true. or lwallfunc = .true.'
+	  print *, 'lwallfunc = .true. is recommended'
       stop 'ERROR: Problem in namoptions NAMRURALBOUNDARY'
     endif
 
@@ -228,7 +230,7 @@ contains
     lnorm_z(:,:,:)=.false.
 
     !< Find Shear layers perpendicular to the x-direction and normal layers in x-direction
-    if(lnoslip) then
+    if(lnoslip) then  !< MK: lnoslip = .false. is recommended
       do k=1,kmax
         do j=2,jmax
           do i=2,imax-1
@@ -281,7 +283,7 @@ contains
       call boolexcjs( lshear_z  , 2,imax,2,jmax,1,kmax,ih,jh)
 
       if(myid==0) write(6,*) 'Succesfully found shear and normal layers in all directions'
-    elseif(lwallfunc) then
+    elseif(lwallfunc) then    !< MK: lwallfunc = .true. is recommended
       !< Find normal layers in x-direction
       do k=1,kmax
         do j=2,j1
@@ -324,49 +326,8 @@ contains
         end do
       end do
 
-      !if(myid==0) write(6,*) 'lnorm_x(4,9,1)=',lnorm_x(4,9,1)
-      !if(myid==0) write(6,*) 'lnorm_x(5,9,1)=',lnorm_x(5,9,1)
-      !if(myid==0) write(6,*) 'lnorm_x(6,9,1)=',lnorm_x(6,9,1)
-
-      !if(myid==0) write(6,*) 'before exjs: , myid=',myid
-      !if(myid==0) write(6,*) 'lnorm_x(:,1,5)=',lnorm_x(:,1,5)
-      !if(myid==0) write(6,*) 'lnorm_x(:,2,5)=',lnorm_x(:,2,5)
-      !if(myid==0) write(6,*) 'lnorm_x(1,:,5)=',lnorm_x(1,:,5)
-      !if(myid==1) write(6,*) 'limmersed_boundary0(7,6,2)=',limmersed_boundary(7,1,2)
-      !if(myid==1) write(6,*) 'limmersed_boundary0(8,6,2)=',limmersed_boundary(8,1,2)
-
-      !if(myid==1) write(6,*) 'limmersed_boundary0(:,6,2)=',limmersed_boundary(:,1,2)
-      !if(myid==1) write(6,*) 'limmersed_boundary1(:,2,2)=',limmersed_boundary(:,2+jmax,2)
-
-      if(myid==1) write(6,*) 'lnorm_x1(8,1,2)=',lnorm_x(8,1,2)
-      if(myid==0) write(6,*) 'lnorm_x0(8,6,2)=',lnorm_x(8,6,2)
-      !if(myid==1) write(6,*) 'lnorm_x1(5,2,2)=',lnorm_x(5,2,2)
-
-      !call boolexcjs( lnorm_x  , 2,imax,2,jmax,1,kmax,ih,jh)
-      !call boolexcjs( lnorm_y  , 2,imax,2,jmax,1,kmax,ih,jh)
-      !call boolexcjs( lnorm_z  , 2,imax,2,jmax,1,kmax,ih,jh)
-
-      !if(myid==1) write(6,*) 'na excjs lnorm_x1(8,1,2)=',lnorm_x(8,1,2)
-      !if(myid==0) write(6,*) 'na excjs lnorm_x0(8,6,2)=',lnorm_x(8,6,2)
-      !lnorm_x(itot+1,:,:)=lnorm_x(1,:,:)
-      !lnorm_x(:,jtot+1,:)=lnorm_x(:,1,:)
-      !lnorm_y(itot+1,:,:)=lnorm_y(1,:,:)
-      !lnorm_y(:,jtot+1,:)=lnorm_y(:,1,:)
-      !lnorm_z(itot+1,:,:)=lnorm_z(1,:,:)
-      !lnorm_z(:,jtot+1,:)=lnorm_z(:,1,:)
-
-
-      !if(myid==0) write(6,*) 'jmax = ',jmax
-
-      !if(myid==0) write(6,*) 'limmersed_boundary(7,:,2)=',limmersed_boundary(7,:,2)
-      !if(myid==0) write(6,*) 'limmersed_boundary(8,:,2)=',limmersed_boundary(8,:,2)
-      !if(myid==0) write(6,*) 'limmersed_boundary(9,:,2)=',limmersed_boundary(9,:,2)
-
-      !if(myid==0) write(6,*) 'limmersed_boundary0(:,6,2)=',limmersed_boundary(:,6,2)
-      !if(myid==1) write(6,*) 'limmersed_boundary1(:,2,2)=',limmersed_boundary(:,2+jmax,2)
-
+      !if(myid==1) write(6,*) 'lnorm_x1(8,1,2)=',lnorm_x(8,1,2)
       !if(myid==0) write(6,*) 'lnorm_x0(8,6,2)=',lnorm_x(8,6,2)
-      !if(myid==1) write(6,*) 'lnorm_x1(5,2,2)=',lnorm_x(5,2,2)
 
       if(myid==0) write(6,*) 'Succesfully found normal layers in all directions'
     endif
@@ -513,7 +474,7 @@ contains
     do i=2,i1  !1+myid*imax,myid*imax+1+imax
       do j=2,j1              !1+myid*jmax,myid*jmax+1+jmax
         do k=2,kmax
-          if(lnoslip) then
+          if(lnoslip) then  !< MK: lnoslip = .false. is recommended
             write(6,*) 'lnoslip is used'
             !< Shear layer first
             if (lshear_x(i,j,k)) then
@@ -528,7 +489,7 @@ contains
               up(i,j,k)=-um(i,j,k)*rk3coefi
               vp(i,j,k)=-vm(i,j,k)*rk3coefi
             endif
-          elseif(lwallfunc) then         !< wallfunctions
+          elseif(lwallfunc) then         !< !< MK: lwallfunc = .true. is recommended
             if (lnorm_x(i,j,k)) then     !< Wall in x-direction
 
               emmo = 0.25  * ( &

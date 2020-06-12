@@ -10,7 +10,7 @@ module modruraldata
   logical :: lruralboundary = .false.        !< Switch to enable rural boundary representation
   logical :: ldefrural      = .false.        !< Switch to customize the rural boundary area
   logical :: lnoslip        = .false.        !< Switch to use a no slip condition for the walls
-  logical :: lwallfunc      = .false.        !< Switch to use wallfunctions to describe wallshear
+  logical :: lwallfunc      = .true.         !< Switch to use wallfunctions to describe wallshear
   logical :: lfluxform      = .true.         !< Switch to use the fluxform of the advection in advection correction
   logical :: lpoislast      = .true.         !< Switch to use the Poisson solver after the Immersed boundary method
                                              !  .false. will set the order to: ZeroVelocity -> PoissonSolver -> IBM
